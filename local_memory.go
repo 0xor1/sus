@@ -24,15 +24,15 @@ func (lms *localMemoryStore) Create(ctx context.Context) (id string, v Versionab
 	id = lms.idf()
 	v = lms.vf()
 	lms.mtx.Lock()
+	defer lms.mtx.Unlock()
 	lms.store[id] = v
-	lms.mtx.Unlock()
 	return
 }
 
 func (lms *localMemoryStore) Read(ctx context.Context, id string) (v Versionable, err error) {
 	lms.mtx.Lock()
+	defer lms.mtx.Unlock()
 	v, exists := lms.store[id]
-	lms.mtx.Unlock()
 	if !exists {
 		err = EntityDoesNotExist
 	}
@@ -41,6 +41,7 @@ func (lms *localMemoryStore) Read(ctx context.Context, id string) (v Versionable
 
 func (lms *localMemoryStore) Update(ctx context.Context, id string, v Versionable) (err error) {
 	lms.mtx.Lock()
+	defer lms.mtx.Unlock()
 	oldV, exists := lms.store[id]
 	if !exists {
 		err = EntityDoesNotExist
@@ -52,13 +53,12 @@ func (lms *localMemoryStore) Update(ctx context.Context, id string, v Versionabl
 		v.incrementVersion()
 		lms.store[id] = v
 	}
-	lms.mtx.Unlock()
 	return
 }
 
 func (lms *localMemoryStore) Delete(ctx context.Context, id string) (err error) {
 	lms.mtx.Lock()
+	defer lms.mtx.Unlock()
 	delete(lms.store, id)
-	lms.mtx.Unlock()
 	return
 }
