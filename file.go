@@ -10,7 +10,7 @@ import(
 type Marshaler func(src interface{}) ([]byte, error)
 type Unmarshaler func(data []byte, dst interface{}) error
 
-func NewFileStore(storeDir string, fileExtension string, m Marshaler, um Unmarshaler, idf IdFactory, vf VersionableFactory) VersionableStore {
+func NewFileStore(storeDir string, fileExtension string, m Marshaler, um Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore {
 	return &fileStore{
 		sd: storeDir,
 		fe: fileExtension,
@@ -27,7 +27,7 @@ type fileStore struct {
 	m	Marshaler
 	um	Unmarshaler
 	idf IdFactory
-	vf	VersionableFactory
+	vf VersionFactory
 	mtx sync.Mutex
 }
 
@@ -35,45 +35,45 @@ func (fs *fileStore) getFileName(id string) string {
 	return fs.sd + `/` + id + `.` + fs.fe
 }
 
-func (fs *fileStore) Create(ctx context.Context) (id string, v Versionable, err error) {
+func (fs *fileStore) Create(ctx context.Context) (id string, v Version, err error) {
 	fs.mtx.Lock()
 	defer fs.mtx.Unlock()
 	id = fs.idf()
 	v = fs.vf()
-	js, err := fs.m(v)
+	d, err := fs.m(v)
 	if err == nil {
-		err = ioutil.WriteFile(fs.getFileName(id), js, 0644)
+		err = ioutil.WriteFile(fs.getFileName(id), d, 0644)
 	}
 	return
 }
 
-func (fs *fileStore) Read(ctx context.Context, id string) (v Versionable, err error) {
+func (fs *fileStore) Read(ctx context.Context, id string) (v Version, err error) {
 	fs.mtx.Lock()
 	defer fs.mtx.Unlock()
-	js, err := ioutil.ReadFile(fs.getFileName(id))
+	d, err := ioutil.ReadFile(fs.getFileName(id))
 	if err == nil {
 		v = fs.vf()
-		err = fs.um(js, v)
+		err = fs.um(d, v)
 	}
 	return
 }
 
-func (fs *fileStore) Update(ctx context.Context, id string, v Versionable) (err error) {
+func (fs *fileStore) Update(ctx context.Context, id string, v Version) (err error) {
 	fs.mtx.Lock()
 	defer fs.mtx.Unlock()
-	oldJs, err := ioutil.ReadFile(fs.getFileName(id))
+	oldD, err := ioutil.ReadFile(fs.getFileName(id))
 	if err == nil {
 		oldV := fs.vf()
-		err = fs.um(oldJs, oldV)
+		err = fs.um(oldD, oldV)
 		if oldV.getVersion() != v.getVersion() {
 			err = NonsequentialUpdate
 		}
 		if err == nil {
 			v.incrementVersion()
-			var js []byte
-			js, err = fs.m(v)
+			var d []byte
+			d, err = fs.m(v)
 			if err == nil {
-				err = ioutil.WriteFile(fs.getFileName(id), js, 0644)
+				err = ioutil.WriteFile(fs.getFileName(id), d, 0644)
 			}
 		}
 	}

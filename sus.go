@@ -10,35 +10,35 @@ var(
 	NonsequentialUpdate = errors.New(`nonsequential update`)
 )
 
-type Versionable interface{
+type Version interface{
 	getVersion() int
 	incrementVersion()
 }
 
-func NewVersionable() Versionable {
-	return &versionableImpl{}
+func NewVersion() Version {
+	return &versionImpl{}
 }
 
-type VersionableFactory func() Versionable
+type VersionFactory func() Version
 
 type IdFactory func() string
 
-type VersionableStore interface{
-	Create(ctx context.Context) (id string, v Versionable, err error)
-	Read(ctx context.Context, id string) (v Versionable, err error)
-	Update(ctx context.Context, id string, v Versionable) error
+type VersionStore interface{
+	Create(ctx context.Context) (id string, v Version, err error)
+	Read(ctx context.Context, id string) (v Version, err error)
+	Update(ctx context.Context, id string, v Version) error
 	Delete(ctx context.Context, id string) error
 }
 
-type versionableImpl struct {
-	Version int	`datastore:",noindex" json:"version"`
+type versionImpl struct {
+	Val int	`datastore:",noindex" json:"val"`
 }
 
-func (vi *versionableImpl) getVersion() int{
-	return vi.Version
+func (vi *versionImpl) getVersion() int{
+	return vi.Val
 }
 
-func (vi *versionableImpl) incrementVersion() {
-	vi.Version += 1
+func (vi *versionImpl) incrementVersion() {
+	vi.Val++
 }
 

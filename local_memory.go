@@ -5,22 +5,22 @@ import(
 	`golang.org/x/net/context`
 )
 
-func NewLocalMemoryStore(idf IdFactory, vf VersionableFactory) VersionableStore {
+func NewLocalMemoryStore(idf IdFactory, vf VersionFactory) VersionStore {
 	return &localMemoryStore{
-		store: map[string]Versionable{},
+		store: map[string]Version{},
 		idf: idf,
 		vf: vf,
 	}
 }
 
 type localMemoryStore struct {
-	store   map[string]Versionable
-	vf		VersionableFactory
+	store   map[string]Version
+	vf VersionFactory
 	idf     IdFactory
 	mtx     sync.Mutex
 }
 
-func (lms *localMemoryStore) Create(ctx context.Context) (id string, v Versionable, err error) {
+func (lms *localMemoryStore) Create(ctx context.Context) (id string, v Version, err error) {
 	id = lms.idf()
 	v = lms.vf()
 	lms.mtx.Lock()
@@ -29,7 +29,7 @@ func (lms *localMemoryStore) Create(ctx context.Context) (id string, v Versionab
 	return
 }
 
-func (lms *localMemoryStore) Read(ctx context.Context, id string) (v Versionable, err error) {
+func (lms *localMemoryStore) Read(ctx context.Context, id string) (v Version, err error) {
 	lms.mtx.Lock()
 	defer lms.mtx.Unlock()
 	v, exists := lms.store[id]
@@ -39,7 +39,7 @@ func (lms *localMemoryStore) Read(ctx context.Context, id string) (v Versionable
 	return
 }
 
-func (lms *localMemoryStore) Update(ctx context.Context, id string, v Versionable) (err error) {
+func (lms *localMemoryStore) Update(ctx context.Context, id string, v Version) (err error) {
 	lms.mtx.Lock()
 	defer lms.mtx.Unlock()
 	oldV, exists := lms.store[id]

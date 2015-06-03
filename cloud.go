@@ -6,7 +6,7 @@ import(
 	`google.golang.org/appengine/datastore`
 )
 
-func NewCloudStore(kind string, idf IdFactory, vf VersionableFactory) VersionableStore {
+func NewCloudStore(kind string, idf IdFactory, vf VersionFactory) VersionStore {
 	return &cloudStore{
 		kind: kind,
 		idf: idf,
@@ -16,11 +16,11 @@ func NewCloudStore(kind string, idf IdFactory, vf VersionableFactory) Versionabl
 
 type cloudStore struct {
 	kind	string
-	vf		VersionableFactory
+	vf VersionFactory
 	idf     IdFactory
 }
 
-func (cs *cloudStore) Create(ctx context.Context) (id string, v Versionable, err error) {
+func (cs *cloudStore) Create(ctx context.Context) (id string, v Version, err error) {
 	id = cs.idf()
 	v = cs.vf()
 	key := datastore.NewKey(ctx, cs.kind, id, 0, nil)
@@ -28,14 +28,14 @@ func (cs *cloudStore) Create(ctx context.Context) (id string, v Versionable, err
 	return
 }
 
-func (cs *cloudStore) Read(ctx context.Context, id string) (v Versionable, err error) {
+func (cs *cloudStore) Read(ctx context.Context, id string) (v Version, err error) {
 	v = cs.vf()
 	key := datastore.NewKey(ctx, cs.kind, id, 0, nil)
 	err = nds.Get(ctx, key, v)
 	return
 }
 
-func (cs *cloudStore) Update(ctx context.Context, id string, v Versionable) (err error) {
+func (cs *cloudStore) Update(ctx context.Context, id string, v Version) (err error) {
 	err = nds.RunInTransaction(ctx, func(ctx context.Context) (err error) {
 		oldV := cs.vf()
 		key := datastore.NewKey(ctx, cs.kind, id, 0, nil)
