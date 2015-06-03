@@ -1,14 +1,9 @@
 package sus
 
 import(
-	`errors`
 	`github.com/qedus/nds`
 	`golang.org/x/net/context`
 	`google.golang.org/appengine/datastore`
-)
-
-var(
-	NonzeroKindRequired	= errors.New(`nonzero kind required`)
 )
 
 func NewCloudStore(kind string, idf IdFactory, vf VersionableFactory) VersionableStore {
