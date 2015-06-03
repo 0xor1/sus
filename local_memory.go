@@ -45,13 +45,14 @@ func (lms *localMemoryStore) Update(ctx context.Context, id string, v Versionabl
 	oldV, exists := lms.store[id]
 	if !exists {
 		err = EntityDoesNotExist
-	}
-	if oldV.getVersion() != v.getVersion() {
-		err = NonsequentialUpdate
-	}
-	if err == nil {
-		v.incrementVersion()
-		lms.store[id] = v
+	} else {
+		if oldV.getVersion() != v.getVersion() {
+			err = NonsequentialUpdate
+		}
+		if err == nil {
+			v.incrementVersion()
+			lms.store[id] = v
+		}
 	}
 	return
 }

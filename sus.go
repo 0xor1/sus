@@ -39,6 +39,6 @@ func (vi *versionableImpl) getVersion() int{
 }
 
 func (vi *versionableImpl) incrementVersion() {
-	vi.Version++
+	vi.Version += 1
 }
 
