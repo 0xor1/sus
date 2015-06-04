@@ -30,7 +30,7 @@ func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) VersionStore {
 	}
 
 	rit := func(ctx context.Context, tran Transaction) error {
-		return nds.RunInTransaction(ctx, tran, &datastore.TransactionOptions{XG:false})
+		return nds.RunInTransaction(ctx, tran, &datastore.TransactionOptions{XG:true})
 	}
 
 	return NewVersionStore(get, put, del, idf, vf, rit)

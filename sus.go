@@ -28,7 +28,7 @@ func (vi *version) getVersion() int{
 }
 
 func (vi *version) incrementVersion() {
-	*vi = *vi + 1
+	*vi += 1
 }
 
 type VersionStore interface{
