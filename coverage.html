@@ -56,7 +56,7 @@
 				
 				<option value="file0">github.com\0xor1\sus\cloud.go (0.0%)</option>
 				
-				<option value="file1">github.com\0xor1\sus\file.go (0.0%)</option>
+				<option value="file1">github.com\0xor1\sus\file.go (100.0%)</option>
 				
 				<option value="file2">github.com\0xor1\sus\local_memory.go (100.0%)</option>
 				
@@ -82,7 +82,7 @@ import(
         `google.golang.org/appengine/datastore`
 )
 
-func NewCloudStore(kind string, idf IdFactory, vf VersionableFactory) VersionableStore <span class="cov0" title="0">{
+func NewCloudStore(kind string, idf IdFactory, vf VersionFactory) VersionStore <span class="cov0" title="0">{
         return &amp;cloudStore{
                 kind: kind,
                 idf: idf,
@@ -92,11 +92,11 @@ func NewCloudStore(kind string, idf IdFactory, vf VersionableFactory) Versionabl
 
 type cloudStore struct {
         kind        string
-        vf                VersionableFactory
+        vf VersionFactory
         idf     IdFactory
 }
 
-func (cs *cloudStore) Create(ctx context.Context) (id string, v Versionable, err error) <span class="cov0" title="0">{
+func (cs *cloudStore) Create(ctx context.Context) (id string, v Version, err error) <span class="cov0" title="0">{
         id = cs.idf()
         v = cs.vf()
         key := datastore.NewKey(ctx, cs.kind, id, 0, nil)
@@ -104,14 +104,14 @@ func (cs *cloudStore) Create(ctx context.Context) (id string, v Versionable, err
         return
 }</span>
 
-func (cs *cloudStore) Read(ctx context.Context, id string) (v Versionable, err error) <span class="cov0" title="0">{
+func (cs *cloudStore) Read(ctx context.Context, id string) (v Version, err error) <span class="cov0" title="0">{
         v = cs.vf()
         key := datastore.NewKey(ctx, cs.kind, id, 0, nil)
         err = nds.Get(ctx, key, v)
         return
 }</span>
 
-func (cs *cloudStore) Update(ctx context.Context, id string, v Versionable) (err error) <span class="cov0" title="0">{
+func (cs *cloudStore) Update(ctx context.Context, id string, v Version) (err error) <span class="cov0" title="0">{
         err = nds.RunInTransaction(ctx, func(ctx context.Context) (err error) </span><span class="cov0" title="0">{
                 oldV := cs.vf()
                 key := datastore.NewKey(ctx, cs.kind, id, 0, nil)
@@ -145,19 +145,20 @@ import(
         `golang.org/x/net/context`
 )
 
-type Marshaler func(src interface{}) ([]byte, error)
-type Unmarshaler func(data []byte, dst interface{}) error
-
-func NewFileStore(storeDir string, fileExtension string, m Marshaler, um Unmarshaler, idf IdFactory, vf VersionableFactory) VersionableStore <span class="cov0" title="0">{
-        return &amp;fileStore{
-                sd: storeDir,
-                fe: fileExtension,
-                m: m,
-                um: um,
-                idf: idf,
-                vf: vf,
-        }
-}</span>
+func NewFileStore(storeDir string, fileExtension string, m Marshaler, um Unmarshaler, idf IdFactory, vf VersionFactory) (VersionStore, error) <span class="cov8" title="1">{
+        err := os.MkdirAll(storeDir, os.ModeDir)
+        if err == nil </span><span class="cov8" title="1">{
+                return &amp;fileStore{
+                        sd: storeDir,
+                        fe: fileExtension,
+                        m: m,
+                        um: um,
+                        idf: idf,
+                        vf: vf,
+                }, nil
+        }</span>
+        <span class="cov8" title="1">return nil, err</span>
+}
 
 type fileStore struct {
         sd        string
@@ -165,60 +166,60 @@ type fileStore struct {
         m        Marshaler
         um        Unmarshaler
         idf IdFactory
-        vf        VersionableFactory
+        vf VersionFactory
         mtx sync.Mutex
 }
 
-func (fs *fileStore) getFileName(id string) string <span class="cov0" title="0">{
+func (fs *fileStore) getFileName(id string) string <span class="cov8" title="1">{
         return fs.sd + `/` + id + `.` + fs.fe
 }</span>
 
-func (fs *fileStore) Create(ctx context.Context) (id string, v Versionable, err error) <span class="cov0" title="0">{
+func (fs *fileStore) Create(ctx context.Context) (id string, v Version, err error) <span class="cov8" title="1">{
         fs.mtx.Lock()
         defer fs.mtx.Unlock()
         id = fs.idf()
         v = fs.vf()
-        js, err := fs.m(v)
-        if err == nil </span><span class="cov0" title="0">{
-                err = ioutil.WriteFile(fs.getFileName(id), js, 0644)
+        d, err := fs.m(v)
+        if err == nil </span><span class="cov8" title="1">{
+                err = ioutil.WriteFile(fs.getFileName(id), d, os.ModeAppend)
         }</span>
-        <span class="cov0" title="0">return</span>
+        <span class="cov8" title="1">return</span>
 }
 
-func (fs *fileStore) Read(ctx context.Context, id string) (v Versionable, err error) <span class="cov0" title="0">{
+func (fs *fileStore) Read(ctx context.Context, id string) (v Version, err error) <span class="cov8" title="1">{
         fs.mtx.Lock()
         defer fs.mtx.Unlock()
-        js, err := ioutil.ReadFile(fs.getFileName(id))
-        if err == nil </span><span class="cov0" title="0">{
+        d, err := ioutil.ReadFile(fs.getFileName(id))
+        if err == nil </span><span class="cov8" title="1">{
                 v = fs.vf()
-                err = fs.um(js, v)
+                err = fs.um(d, v)
         }</span>
-        <span class="cov0" title="0">return</span>
+        <span class="cov8" title="1">return</span>
 }
 
-func (fs *fileStore) Update(ctx context.Context, id string, v Versionable) (err error) <span class="cov0" title="0">{
+func (fs *fileStore) Update(ctx context.Context, id string, v Version) (err error) <span class="cov8" title="1">{
         fs.mtx.Lock()
         defer fs.mtx.Unlock()
-        oldJs, err := ioutil.ReadFile(fs.getFileName(id))
-        if err == nil </span><span class="cov0" title="0">{
+        oldD, err := ioutil.ReadFile(fs.getFileName(id))
+        if err == nil </span><span class="cov8" title="1">{
                 oldV := fs.vf()
-                err = fs.um(oldJs, oldV)
-                if oldV.getVersion() != v.getVersion() </span><span class="cov0" title="0">{
+                err = fs.um(oldD, oldV)
+                if oldV.getVersion() != v.getVersion() </span><span class="cov8" title="1">{
                         err = NonsequentialUpdate
                 }</span>
-                <span class="cov0" title="0">if err == nil </span><span class="cov0" title="0">{
+                <span class="cov8" title="1">if err == nil </span><span class="cov8" title="1">{
                         v.incrementVersion()
-                        var js []byte
-                        js, err = fs.m(v)
-                        if err == nil </span><span class="cov0" title="0">{
-                                err = ioutil.WriteFile(fs.getFileName(id), js, 0644)
+                        var d []byte
+                        d, err = fs.m(v)
+                        if err == nil </span><span class="cov8" title="1">{
+                                err = ioutil.WriteFile(fs.getFileName(id), d, 0644)
                         }</span>
                 }
         }
-        <span class="cov0" title="0">return</span>
+        <span class="cov8" title="1">return</span>
 }
 
-func (fs *fileStore) Delete(ctx context.Context, id string) (err error) <span class="cov0" title="0">{
+func (fs *fileStore) Delete(ctx context.Context, id string) (err error) <span class="cov8" title="1">{
         fs.mtx.Lock()
         defer fs.mtx.Unlock()
         err = os.Remove(fs.getFileName(id))
@@ -232,54 +233,70 @@ import(
         `golang.org/x/net/context`
 )
 
-func NewLocalMemoryStore(idf IdFactory, vf VersionableFactory) VersionableStore <span class="cov8" title="1">{
+func NewLocalMemoryStore(m Marshaler, um Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
         return &amp;localMemoryStore{
-                store: map[string]Versionable{},
+                store: map[string][]byte{},
+                m: m,
+                um: um,
                 idf: idf,
                 vf: vf,
         }
 }</span>
 
 type localMemoryStore struct {
-        store   map[string]Versionable
-        vf                VersionableFactory
+        store   map[string][]byte
+        m                Marshaler
+        um                Unmarshaler
+        vf                 VersionFactory
         idf     IdFactory
         mtx     sync.Mutex
 }
 
-func (lms *localMemoryStore) Create(ctx context.Context) (id string, v Versionable, err error) <span class="cov8" title="1">{
+func (lms *localMemoryStore) Create(ctx context.Context) (id string, v Version, err error) <span class="cov8" title="1">{
         id = lms.idf()
         v = lms.vf()
-        lms.mtx.Lock()
+        d, err := lms.m(v)
+        if err == nil </span><span class="cov8" title="1">{
+                lms.store[id] = d
+        }</span>
+        <span class="cov8" title="1">lms.mtx.Lock()
         defer lms.mtx.Unlock()
-        lms.store[id] = v
-        return
-}</span>
+        return</span>
+}
 
-func (lms *localMemoryStore) Read(ctx context.Context, id string) (v Versionable, err error) <span class="cov8" title="1">{
+func (lms *localMemoryStore) Read(ctx context.Context, id string) (v Version, err error) <span class="cov8" title="1">{
         lms.mtx.Lock()
         defer lms.mtx.Unlock()
-        v, exists := lms.store[id]
+        d, exists := lms.store[id]
         if !exists </span><span class="cov8" title="1">{
                 err = EntityDoesNotExist
+        }</span><span class="cov8" title="1"> else {
+                v = lms.vf()
+                err = lms.um(d, v)
         }</span>
         <span class="cov8" title="1">return</span>
 }
 
-func (lms *localMemoryStore) Update(ctx context.Context, id string, v Versionable) (err error) <span class="cov8" title="1">{
+func (lms *localMemoryStore) Update(ctx context.Context, id string, v Version) (err error) <span class="cov8" title="1">{
         lms.mtx.Lock()
         defer lms.mtx.Unlock()
-        oldV, exists := lms.store[id]
+        oldD, exists := lms.store[id]
         if !exists </span><span class="cov8" title="1">{
                 err = EntityDoesNotExist
         }</span><span class="cov8" title="1"> else {
+                oldV := lms.vf()
+                err = lms.um(oldD, oldV)
                 if oldV.getVersion() != v.getVersion() </span><span class="cov8" title="1">{
                         err = NonsequentialUpdate
                 }</span>
                 <span class="cov8" title="1">if err == nil </span><span class="cov8" title="1">{
                         v.incrementVersion()
-                        lms.store[id] = v
-                }</span>
+                        var d []byte
+                        d, err = lms.m(v)
+                        if err == nil </span><span class="cov8" title="1">{
+                                lms.store[id] = d
+                        }</span>
+                }
         }
         <span class="cov8" title="1">return</span>
 }
@@ -303,36 +320,38 @@ var(
         NonsequentialUpdate = errors.New(`nonsequential update`)
 )
 
-type Versionable interface{
+type Marshaler func(src interface{}) ([]byte, error)
+type Unmarshaler func(data []byte, dst interface{}) error
+
+type Version interface{
         getVersion() int
         incrementVersion()
 }
 
-func NewVersionable() Versionable <span class="cov8" title="1">{
-        return &amp;versionableImpl{}
+func NewVersion() Version <span class="cov8" title="1">{
+        vi := versionImpl(0)
+        return &amp;vi
 }</span>
 
-type VersionableFactory func() Versionable
+type VersionFactory func() Version
 
 type IdFactory func() string
 
-type VersionableStore interface{
-        Create(ctx context.Context) (id string, v Versionable, err error)
-        Read(ctx context.Context, id string) (v Versionable, err error)
-        Update(ctx context.Context, id string, v Versionable) error
+type VersionStore interface{
+        Create(ctx context.Context) (id string, v Version, err error)
+        Read(ctx context.Context, id string) (v Version, err error)
+        Update(ctx context.Context, id string, v Version) error
         Delete(ctx context.Context, id string) error
 }
 
-type versionableImpl struct {
-        Version int        `datastore:",noindex" json:"version"`
-}
+type versionImpl int
 
-func (vi *versionableImpl) getVersion() int<span class="cov8" title="1">{
-        return vi.Version
+func (vi *versionImpl) getVersion() int<span class="cov8" title="1">{
+        return int(*vi)
 }</span>
 
-func (vi *versionableImpl) incrementVersion() <span class="cov8" title="1">{
-        vi.Version += 1
+func (vi *versionImpl) incrementVersion() <span class="cov8" title="1">{
+        *vi = *vi + 1
 }</span>
 
 </pre>

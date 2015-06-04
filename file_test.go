@@ -6,10 +6,22 @@ import(
 	`golang.org/x/net/context`
 	`github.com/stretchr/testify/assert`
 	"encoding/json"
+	"os"
 )
 
+const(
+	_TEST_DIR = `./testData`
+)
+
+func Test_NewFileStore_failure(t *testing.T){
+	ffs, err := newFooFileStore(`F:\sdf.*$>?/\/\!"£$%^&)(_`, nil, nil)
+
+	assert.Nil(t, ffs, `ffs should be nil`)
+	assert.NotNil(t, err, `err should not be nil`)
+}
+
 func Test_FileStore_Create(t *testing.T){
-	ffs := newFooFileStore(nil, nil)
+	ffs, _ := newFooFileStore(_TEST_DIR, nil, nil)
 
 	id1, f1, err1 := ffs.Create(nil)
 
@@ -26,10 +38,11 @@ func Test_FileStore_Create(t *testing.T){
 	assert.Equal(t, 0, f2.getVersion(), `f2's version should be 0`)
 	assert.True(t, f2 != f1, `f2 should not be f1`)
 	assert.Nil(t, err2, `err2 should be nil`)
+	os.RemoveAll(_TEST_DIR)
 }
 
 func Test_FileStore_Read_success(t *testing.T){
-	ffs := newFooFileStore(nil, nil)
+	ffs, _ := newFooFileStore(_TEST_DIR, nil, nil)
 
 	id, f1, err1 := ffs.Create(nil)
 
@@ -43,49 +56,53 @@ func Test_FileStore_Read_success(t *testing.T){
 	assert.NotNil(t, f2, `f2 should not be nil`)
 	assert.Equal(t, f1, f2, `f2 should be f1`)
 	assert.Nil(t, err2, `err2 should be nil`)
+	os.RemoveAll(_TEST_DIR)
 }
 
-func Test_FileStore_Read_EntityDoesNotExist_failure(t *testing.T){
-	ffs := newFooFileStore(nil, nil)
+func Test_FileStore_Read_PathError_failure(t *testing.T){
+	ffs, _ := newFooFileStore(_TEST_DIR, nil, nil)
 
 	f, err := ffs.Read(nil, ``)
 
-	assert.Nil(t, f, `f should not be nil`)
-	assert.Equal(t, EntityDoesNotExist, err, `err should be EntityDoesNotExist`)
+	assert.Nil(t, f, `f should be nil`)
+	assert.IsType(t, &os.PathError{}, err, `err should be os.PathError`)
+	os.RemoveAll(_TEST_DIR)
 }
 
 func Test_FileStore_Update_success(t *testing.T){
-	ffs := newFooFileStore(nil, nil)
+	ffs, _ := newFooFileStore(_TEST_DIR, nil, nil)
 	id, f, err := ffs.Create(nil)
 
 	err = ffs.Update(nil, id, f)
 
 	assert.Equal(t, 1, f.getVersion(), `f's version should be 1`)
 	assert.Nil(t, err, `err should be nil`)
+	os.RemoveAll(_TEST_DIR)
 }
 
-func Test_FileStore_Update_EntityDoesNotExist_failure(t *testing.T){
-	ffs := newFooFileStore(nil, nil)
+func Test_FileStore_Update_PathError_failure(t *testing.T){
+	ffs, _ := newFooFileStore(_TEST_DIR, nil, nil)
 	_, f, _ := ffs.Create(nil)
 
 	err := ffs.Update(nil, ``, f)
 
-	assert.Equal(t, EntityDoesNotExist, err, `err should be EntityDoesNotExist`)
+	assert.IsType(t, &os.PathError{}, err, `err should be os.PathError`)
+	os.RemoveAll(_TEST_DIR)
 }
 
 func Test_FileStore_Update_NonsequentialUpdate_failure(t *testing.T){
-	ffs := newFooFileStore(nil, nil)
-	id, f1, _ := ffs.Create(nil)
-	_, f2, _ := ffs.Create(nil)
-	f1.incrementVersion()
+	ffs, _ := newFooFileStore(_TEST_DIR, nil, nil)
+	id, f, _ := ffs.Create(nil)
+	f.incrementVersion()
 
-	err := ffs.Update(nil, id, f2)
+	err := ffs.Update(nil, id, f)
 
 	assert.Equal(t, NonsequentialUpdate, err, `err should be NonsequentialUpdate`)
+	os.RemoveAll(_TEST_DIR)
 }
 
 func Test_FileStore_Delete_success(t *testing.T){
-	ffs := newFooFileStore(nil, nil)
+	ffs, _ := newFooFileStore(_TEST_DIR, nil, nil)
 	id, f, err := ffs.Create(nil)
 
 	err = ffs.Delete(nil, id)
@@ -95,10 +112,11 @@ func Test_FileStore_Delete_success(t *testing.T){
 	f, err = ffs.Read(nil, id)
 
 	assert.Nil(t, f, `f should be nil`)
-	assert.Equal(t, EntityDoesNotExist, err, `err should be EntityDoesNotExist`)
+	assert.IsType(t, &os.PathError{}, err, `err should be os.PathError`)
+	os.RemoveAll(_TEST_DIR)
 }
 
-func newFooFileStore(m Marshaler, um Unmarshaler) *fooFileStore {
+func newFooFileStore(dir string, m Marshaler, um Unmarshaler) (*fooFileStore, error) {
 	idSrc := 0
 	if m == nil {
 		m = json.Marshal
@@ -106,21 +124,25 @@ func newFooFileStore(m Marshaler, um Unmarshaler) *fooFileStore {
 	if um == nil {
 		um = json.Unmarshal
 	}
-	return &fooFileStore{
-		inner: NewFileStore(
-			`./testData`,
-			`json`,
-			m,
-			um,
-			func() string {
-				idSrc++
-				return fmt.Sprintf(`%d`, idSrc)
-			},
-			func() Version {
-				return &foo{NewVersion()}
-			},
-		),
+	inner, err := NewFileStore(
+		dir,
+		`json`,
+		m,
+		um,
+		func() string {
+			idSrc++
+			return fmt.Sprintf(`%d`, idSrc)
+		},
+		func() Version {
+			return &foo{NewVersion()}
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
+	return &fooFileStore{
+		inner: inner,
+	}, nil
 }
 
 type fooFileStore struct {

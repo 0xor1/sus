@@ -10,13 +10,17 @@ var(
 	NonsequentialUpdate = errors.New(`nonsequential update`)
 )
 
+type Marshaler func(src interface{}) ([]byte, error)
+type Unmarshaler func(data []byte, dst interface{}) error
+
 type Version interface{
 	getVersion() int
 	incrementVersion()
 }
 
 func NewVersion() Version {
-	return &versionImpl{}
+	vi := versionImpl(0)
+	return &vi
 }
 
 type VersionFactory func() Version
@@ -30,15 +34,13 @@ type VersionStore interface{
 	Delete(ctx context.Context, id string) error
 }
 
-type versionImpl struct {
-	Val int	`datastore:",noindex" json:"val"`
-}
+type versionImpl int
 
 func (vi *versionImpl) getVersion() int{
-	return vi.Val
+	return int(*vi)
 }
 
 func (vi *versionImpl) incrementVersion() {
-	vi.Val++
+	*vi = *vi + 1
 }
 

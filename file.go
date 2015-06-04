@@ -7,18 +7,19 @@ import(
 	`golang.org/x/net/context`
 )
 
-type Marshaler func(src interface{}) ([]byte, error)
-type Unmarshaler func(data []byte, dst interface{}) error
-
-func NewFileStore(storeDir string, fileExtension string, m Marshaler, um Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore {
-	return &fileStore{
-		sd: storeDir,
-		fe: fileExtension,
-		m: m,
-		um: um,
-		idf: idf,
-		vf: vf,
+func NewFileStore(storeDir string, fileExtension string, m Marshaler, um Unmarshaler, idf IdFactory, vf VersionFactory) (VersionStore, error) {
+	err := os.MkdirAll(storeDir, os.ModeDir)
+	if err == nil {
+		return &fileStore{
+			sd: storeDir,
+			fe: fileExtension,
+			m: m,
+			um: um,
+			idf: idf,
+			vf: vf,
+		}, nil
 	}
+	return nil, err
 }
 
 type fileStore struct {
@@ -42,7 +43,7 @@ func (fs *fileStore) Create(ctx context.Context) (id string, v Version, err erro
 	v = fs.vf()
 	d, err := fs.m(v)
 	if err == nil {
-		err = ioutil.WriteFile(fs.getFileName(id), d, 0644)
+		err = ioutil.WriteFile(fs.getFileName(id), d, os.ModeAppend)
 	}
 	return
 }

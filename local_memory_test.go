@@ -3,6 +3,7 @@ package sus
 import(
 	`fmt`
 	`testing`
+	`encoding/json`
 	`golang.org/x/net/context`
 	`github.com/stretchr/testify/assert`
 )
@@ -49,7 +50,7 @@ func Test_LocalMemoryStore_Read_EntityDoesNotExist_failure(t *testing.T){
 
 	f, err := flms.Read(nil, ``)
 
-	assert.Nil(t, f, `f should not be nil`)
+	assert.Nil(t, f, `f should be nil`)
 	assert.Equal(t, EntityDoesNotExist, err, `err should be EntityDoesNotExist`)
 }
 
@@ -74,11 +75,10 @@ func Test_LocalMemoryStore_Update_EntityDoesNotExist_failure(t *testing.T){
 
 func Test_LocalMemoryStore_Update_NonsequentialUpdate_failure(t *testing.T){
 	flms := newFooLocalMemoryStore()
-	id, f1, _ := flms.Create(nil)
-	_, f2, _ := flms.Create(nil)
-	f1.incrementVersion()
+	id, f, _ := flms.Create(nil)
+	f.incrementVersion()
 
-	err := flms.Update(nil, id, f2)
+	err := flms.Update(nil, id, f)
 
 	assert.Equal(t, NonsequentialUpdate, err, `err should be NonsequentialUpdate`)
 }
@@ -98,13 +98,15 @@ func Test_LocalMemoryStore_Delete_success(t *testing.T){
 }
 
 type foo struct{
-	Version
+	Version	`json:"version"`
 }
 
 func newFooLocalMemoryStore() *fooLocalMemoryStore {
 	idSrc := 0
 	return &fooLocalMemoryStore{
 		inner: NewLocalMemoryStore(
+			json.Marshal,
+			json.Unmarshal,
 			func() string {
 				idSrc++
 				return fmt.Sprintf(`%d`, idSrc)
