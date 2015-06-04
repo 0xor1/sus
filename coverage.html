@@ -84,23 +84,41 @@ import(
         `golang.org/x/net/context`
 )
 
+func NewJsonFileStore(storeDir string, idf IdFactory, vf VersionFactory) (VersionStore, error) <span class="cov8" title="1">{
+        return NewFileStore(storeDir, `json`, jsonMarshaler, jsonUnmarshaler, idf, vf)
+}</span>
+
 func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) (VersionStore, error) <span class="cov8" title="1">{
         err := os.MkdirAll(storeDir, os.ModeDir)
+
         if err == nil </span><span class="cov8" title="1">{
+
                 getFileName := func(id string) string </span><span class="cov8" title="1">{
                         return storeDir + `/` + id + `.` + fileExt
                 }</span>
+
                 <span class="cov8" title="1">get := func(ctx context.Context, id string) ([]byte, error) </span><span class="cov8" title="1">{
-                        return ioutil.ReadFile(getFileName(id))
-                }</span>
+                        fn := getFileName(id)
+                        if _, err := os.Stat(fn); err != nil </span><span class="cov8" title="1">{
+                                if os.IsNotExist(err) </span><span class="cov8" title="1">{
+                                        err = EntityDoesNotExist
+                                }</span>
+                                <span class="cov8" title="1">return nil, err</span>
+                        }
+                        <span class="cov8" title="1">return ioutil.ReadFile(fn)</span>
+                }
+
                 <span class="cov8" title="1">put := func(ctx context.Context, id string, d []byte) error </span><span class="cov8" title="1">{
                         return ioutil.WriteFile(getFileName(id), d, os.ModeAppend)
                 }</span>
+
                 <span class="cov8" title="1">del := func(ctx context.Context, id string) error </span><span class="cov8" title="1">{
                         return os.Remove(getFileName(id))
                 }</span>
+
                 <span class="cov8" title="1">return NewMutexByteStore(get, put, del, m, un, idf, vf), nil</span>
         }
+
         <span class="cov8" title="1">return nil, err</span>
 }</pre>
 		
@@ -113,57 +131,33 @@ import(
 )
 
 func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) VersionStore <span class="cov0" title="0">{
-        return &amp;gaeStore{
-                kind: kind,
-                idf: idf,
-                vf: vf,
-        }
-}</span>
+        getKey := func(ctx context.Context, id string) *datastore.Key </span><span class="cov0" title="0">{
+                return datastore.NewKey(ctx, kind, id, 0, nil)
+        }</span>
 
-type gaeStore struct {
-        kind        string
-        vf                 VersionFactory
-        idf     IdFactory
-}
+        <span class="cov0" title="0">get := func(ctx context.Context, id string) (v Version, err error) </span><span class="cov0" title="0">{
+                v = vf()
+                key := getKey(ctx, id)
+                err = nds.Get(ctx, key, v)
+                return
+        }</span>
 
-func (gs *gaeStore) Create(ctx context.Context) (id string, v Version, err error) <span class="cov0" title="0">{
-        id = gs.idf()
-        v = gs.vf()
-        key := datastore.NewKey(ctx, gs.kind, id, 0, nil)
-        _, err = nds.Put(ctx, key, v)
-        return
-}</span>
+        <span class="cov0" title="0">put := func(ctx context.Context, id string, v Version) (err error) </span><span class="cov0" title="0">{
+                key := getKey(ctx, id)
+                _, err = nds.Put(ctx, key, v)
+                return
+        }</span>
 
-func (gs *gaeStore) Read(ctx context.Context, id string) (v Version, err error) <span class="cov0" title="0">{
-        v = gs.vf()
-        key := datastore.NewKey(ctx, gs.kind, id, 0, nil)
-        err = nds.Get(ctx, key, v)
-        return
-}</span>
+        <span class="cov0" title="0">del := func(ctx context.Context, id string) error </span><span class="cov0" title="0">{
+                key := getKey(ctx, id)
+                return nds.Delete(ctx, key)
+        }</span>
 
-func (gs *gaeStore) Update(ctx context.Context, id string, v Version) (err error) <span class="cov0" title="0">{
-        err = nds.RunInTransaction(ctx, func(ctx context.Context) (err error) </span><span class="cov0" title="0">{
-                oldV := gs.vf()
-                key := datastore.NewKey(ctx, gs.kind, id, 0, nil)
-                err = nds.Get(ctx, key, oldV)
-                if err == nil </span><span class="cov0" title="0">{
-                        if oldV.getVersion() == v.getVersion() </span><span class="cov0" title="0">{
-                                err = NonsequentialUpdate
-                        }</span>
-                        <span class="cov0" title="0">if err == nil </span><span class="cov0" title="0">{
-                                v.incrementVersion()
-                                _, err = datastore.Put(ctx, key, v)
-                        }</span>
-                }
-                <span class="cov0" title="0">return</span>
-        }, &amp;datastore.TransactionOptions{XG:false})
-        <span class="cov0" title="0">return</span>
-}
+        <span class="cov0" title="0">rit := func(ctx context.Context, tran Transaction) error </span><span class="cov0" title="0">{
+                return nds.RunInTransaction(ctx, tran, &amp;datastore.TransactionOptions{XG:false})
+        }</span>
 
-func (gs *gaeStore) Delete(ctx context.Context, id string) (err error) <span class="cov0" title="0">{
-        key := datastore.NewKey(ctx, gs.kind, id, 0, nil)
-        err = nds.Delete(ctx, key)
-        return
+        <span class="cov0" title="0">return NewVersionStore(get, put, del, idf, vf, rit)</span>
 }</pre>
 		
 		<pre class="file" id="file2" style="display: none">package sus
@@ -172,8 +166,13 @@ import(
         `golang.org/x/net/context`
 )
 
+func NewJsonLocalMemoryStore(idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
+        return NewLocalMemoryStore(jsonMarshaler, jsonUnmarshaler, idf, vf)
+}</span>
+
 func NewLocalMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
         store := map[string][]byte{}
+
         get := func(ctx context.Context, id string) ([]byte, error) </span><span class="cov8" title="1">{
                 var err error
                 d, exists := store[id]
@@ -182,14 +181,17 @@ func NewLocalMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionF
                 }</span>
                 <span class="cov8" title="1">return d, err</span>
         }
+
         <span class="cov8" title="1">put := func(ctx context.Context, id string, d []byte) error </span><span class="cov8" title="1">{
                 store[id] = d
                 return nil
         }</span>
+
         <span class="cov8" title="1">del := func(ctx context.Context, id string) error </span><span class="cov8" title="1">{
                 delete(store, id)
                 return nil
         }</span>
+
         <span class="cov8" title="1">return NewMutexByteStore(get, put, del, m, un, idf, vf)</span>
 }</pre>
 		
@@ -204,80 +206,45 @@ type Marshaler func(src Version) ([]byte, error)
 type Unmarshaler func(data []byte, dst Version) error
 type ByteGetter func(ctx context.Context, id string) ([]byte, error)
 type BytePutter func(ctx context.Context, id string, d []byte) error
-type Deleter func(ctx context.Context, id string) error
 
-func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
-        return &amp;mutexByteStore{bg, bp, d, m, un, idf, vf, sync.Mutex{}}
-}</span>
+func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Delete, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
+        mtx := sync.Mutex{}
 
-type mutexByteStore struct {
-        get                                ByteGetter
-        put                                BytePutter
-        delete                        Deleter
-        marshal                        Marshaler
-        unmarshal                 Unmarshaler
-        idFactory                IdFactory
-        versionFactory         VersionFactory
-        mtx                     sync.Mutex
-}
-
-func (mbs *mutexByteStore) Create(ctx context.Context) (id string, v Version, err error) <span class="cov8" title="1">{
-        mbs.mtx.Lock()
-        defer mbs.mtx.Unlock()
-        id = mbs.idFactory()
-        v = mbs.versionFactory()
-        d, err := mbs.marshal(v)
-        if err == nil </span><span class="cov8" title="1">{
-                err = mbs.put(ctx, id, d)
-        }</span>
-        <span class="cov8" title="1">return</span>
-}
-
-func (mbs *mutexByteStore) Read(ctx context.Context, id string) (v Version, err error) <span class="cov8" title="1">{
-        mbs.mtx.Lock()
-        defer mbs.mtx.Unlock()
-        d, err := mbs.get(ctx, id)
-        if err == nil </span><span class="cov8" title="1">{
-                v = mbs.versionFactory()
-                err = mbs.unmarshal(d, v)
-        }</span>
-        <span class="cov8" title="1">return</span>
-}
-
-func (mbs *mutexByteStore) Update(ctx context.Context, id string, v Version) (err error) <span class="cov8" title="1">{
-        mbs.mtx.Lock()
-        defer mbs.mtx.Unlock()
-        oldD, err := mbs.get(ctx, id)
-        if err == nil </span><span class="cov8" title="1">{
-                oldV := mbs.versionFactory()
-                err = mbs.unmarshal(oldD, oldV)
-                if oldV.getVersion() != v.getVersion() </span><span class="cov8" title="1">{
-                        err = NonsequentialUpdate
+        get := func(ctx context.Context, id string) (v Version, err error) </span><span class="cov8" title="1">{
+                d, err := bg(ctx, id)
+                if err == nil </span><span class="cov8" title="1">{
+                        v = vf()
+                        err = un(d, v)
                 }</span>
-                <span class="cov8" title="1">if err == nil </span><span class="cov8" title="1">{
-                        v.incrementVersion()
-                        var d []byte
-                        d, err = mbs.marshal(v)
-                        if err == nil </span><span class="cov8" title="1">{
-                                err = mbs.put(ctx, id, d)
-                        }</span>
-                }
+                <span class="cov8" title="1">return</span>
         }
-        <span class="cov8" title="1">return</span>
-}
 
-func (mbs *mutexByteStore) Delete(ctx context.Context, id string) (err error) <span class="cov8" title="1">{
-        mbs.mtx.Lock()
-        defer mbs.mtx.Unlock()
-        err = mbs.delete(ctx, id)
-        return
-}</span>
-</pre>
+        <span class="cov8" title="1">put := func(ctx context.Context, id string, v Version) error </span><span class="cov8" title="1">{
+                d, err := m(v)
+                if err == nil </span><span class="cov8" title="1">{
+                        err = bp(ctx, id, d)
+                }</span>
+                <span class="cov8" title="1">return err</span>
+        }
+
+        <span class="cov8" title="1">del := func(ctx context.Context, id string) error </span><span class="cov8" title="1">{
+                return d(ctx, id)
+        }</span>
+
+        <span class="cov8" title="1">rit := func(ctx context.Context, tran Transaction) error </span><span class="cov8" title="1">{
+                mtx.Lock()
+                defer mtx.Unlock()
+                return tran(ctx)
+        }</span>
+
+        <span class="cov8" title="1">return NewVersionStore(get, put, del, idf, vf, rit)</span>
+}</pre>
 		
 		<pre class="file" id="file4" style="display: none">package sus
 
 import(
         `errors`
+        `encoding/json`
         `golang.org/x/net/context`
 )
 
@@ -292,13 +259,19 @@ type Version interface{
 }
 
 func NewVersion() Version <span class="cov8" title="1">{
-        vi := versionImpl(0)
+        vi := version(0)
         return &amp;vi
 }</span>
 
-type VersionFactory func() Version
+type version int
 
-type IdFactory func() string
+func (vi *version) getVersion() int<span class="cov8" title="1">{
+        return int(*vi)
+}</span>
+
+func (vi *version) incrementVersion() <span class="cov8" title="1">{
+        *vi = *vi + 1
+}</span>
 
 type VersionStore interface{
         Create(ctx context.Context) (id string, v Version, err error)
@@ -307,17 +280,74 @@ type VersionStore interface{
         Delete(ctx context.Context, id string) error
 }
 
-type versionImpl int
+type IdFactory func() string
+type VersionFactory func() Version
+type RunInTransaction func(ctx context.Context, tran Transaction) error
+type Transaction func(ctx context.Context) error
+type Get func(ctx context.Context, id string) (Version, error)
+type Put func(ctx context.Context, id string, v Version) error
+type Delete func(ctx context.Context, id string) error
 
-func (vi *versionImpl) getVersion() int<span class="cov8" title="1">{
-        return int(*vi)
+func NewVersionStore(g Get, p Put, d Delete, idf IdFactory, vf VersionFactory, rit RunInTransaction) VersionStore <span class="cov8" title="1">{
+        return &amp;versionStore{g, p, d, idf, vf, rit}
 }</span>
 
-func (vi *versionImpl) incrementVersion() <span class="cov8" title="1">{
-        *vi = *vi + 1
+type versionStore struct{
+        get                                 Get
+        put                                 Put
+        delete                                 Delete
+        idFactory                         IdFactory
+        versionFactory                 VersionFactory
+        runInTransaction        RunInTransaction
+}
+
+func (vs *versionStore) Create(ctx context.Context) (id string, v Version, err error) <span class="cov8" title="1">{
+        err = vs.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
+                id = vs.idFactory()
+                v = vs.versionFactory()
+                return vs.put(ctx, id, v)
+        }</span>)
+        <span class="cov8" title="1">return</span>
+}
+
+func (vs *versionStore) Read(ctx context.Context, id string) (v Version, err error) <span class="cov8" title="1">{
+        err = vs.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
+                v, err = vs.get(ctx, id)
+                return err
+        }</span>)
+        <span class="cov8" title="1">return</span>
+}
+
+func (vs *versionStore) Update(ctx context.Context, id string, v Version) (err error) <span class="cov8" title="1">{
+        err = vs.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
+                oldV, err := vs.get(ctx, id)
+                if err == nil </span><span class="cov8" title="1">{
+                        if oldV.getVersion() != v.getVersion() </span><span class="cov8" title="1">{
+                                err = NonsequentialUpdate
+                        }</span><span class="cov8" title="1"> else {
+                                v.incrementVersion()
+                                err = vs.put(ctx, id, v)
+                        }</span>
+                }
+                <span class="cov8" title="1">return err</span>
+        })
+        <span class="cov8" title="1">return</span>
+}
+
+func (vs *versionStore) Delete(ctx context.Context, id string) (err error) <span class="cov8" title="1">{
+        err = vs.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
+                return vs.delete(ctx, id)
+        }</span>)
+        <span class="cov8" title="1">return</span>
+}
+
+func jsonMarshaler(v Version)([]byte, error)<span class="cov8" title="1">{
+        return json.Marshal(v)
 }</span>
 
-</pre>
+func jsonUnmarshaler(d []byte, v Version) error<span class="cov8" title="1">{
+        return json.Unmarshal(d, v)
+}</pre>
 		
 		</div>
 	</body>

@@ -3,7 +3,6 @@ package sus
 import(
 	`fmt`
 	`testing`
-	`encoding/json`
 	`golang.org/x/net/context`
 	`github.com/stretchr/testify/assert`
 )
@@ -104,13 +103,7 @@ type foo struct{
 func newFooLocalMemoryStore() *fooLocalMemoryStore {
 	idSrc := 0
 	return &fooLocalMemoryStore{
-		inner: NewLocalMemoryStore(
-			func(v Version)([]byte, error){
-				return json.Marshal(v)
-			},
-			func(d []byte, v Version) error{
-				return json.Unmarshal(d, v)
-			},
+		inner: NewJsonLocalMemoryStore(
 			func() string {
 				idSrc++
 				return fmt.Sprintf(`%d`, idSrc)

@@ -1,12 +1,11 @@
 package sus
 
 import(
+	`os`
 	`fmt`
 	`testing`
 	`golang.org/x/net/context`
 	`github.com/stretchr/testify/assert`
-	"encoding/json"
-	"os"
 )
 
 const(
@@ -59,13 +58,13 @@ func Test_FileStore_Read_success(t *testing.T){
 	os.RemoveAll(_TEST_DIR)
 }
 
-func Test_FileStore_Read_PathError_failure(t *testing.T){
+func Test_FileStore_Read_EntityDoesNotExist_failure(t *testing.T){
 	ffs, _ := newFooFileStore(_TEST_DIR, nil, nil)
 
 	f, err := ffs.Read(nil, ``)
 
 	assert.Nil(t, f, `f should be nil`)
-	assert.IsType(t, &os.PathError{}, err, `err should be os.PathError`)
+	assert.Equal(t, EntityDoesNotExist, err, `err should be EntityDoesNotExist`)
 	os.RemoveAll(_TEST_DIR)
 }
 
@@ -80,13 +79,13 @@ func Test_FileStore_Update_success(t *testing.T){
 	os.RemoveAll(_TEST_DIR)
 }
 
-func Test_FileStore_Update_PathError_failure(t *testing.T){
+func Test_FileStore_Update_EntityDoesNotExist_failure(t *testing.T){
 	ffs, _ := newFooFileStore(_TEST_DIR, nil, nil)
 	_, f, _ := ffs.Create(nil)
 
 	err := ffs.Update(nil, ``, f)
 
-	assert.IsType(t, &os.PathError{}, err, `err should be os.PathError`)
+	assert.Equal(t, EntityDoesNotExist, err, `err should be EntityDoesNotExist`)
 	os.RemoveAll(_TEST_DIR)
 }
 
@@ -112,27 +111,14 @@ func Test_FileStore_Delete_success(t *testing.T){
 	f, err = ffs.Read(nil, id)
 
 	assert.Nil(t, f, `f should be nil`)
-	assert.IsType(t, &os.PathError{}, err, `err should be os.PathError`)
+	assert.IsType(t, EntityDoesNotExist, err, `err should be EntityDoesNotExist`)
 	os.RemoveAll(_TEST_DIR)
 }
 
 func newFooFileStore(dir string, m Marshaler, um Unmarshaler) (*fooFileStore, error) {
 	idSrc := 0
-	if m == nil {
-		m = func(v Version)([]byte, error){
-			return json.Marshal(v)
-		}
-	}
-	if um == nil {
-		um = func(d []byte, v Version) error{
-			return json.Unmarshal(d, v)
-		}
-	}
-	inner, err := NewFileStore(
+	inner, err := NewJsonFileStore(
 		dir,
-		`json`,
-		m,
-		um,
 		func() string {
 			idSrc++
 			return fmt.Sprintf(`%d`, idSrc)
