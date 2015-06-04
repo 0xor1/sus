@@ -4,11 +4,11 @@ import(
 	`golang.org/x/net/context`
 )
 
-func NewJsonLocalMemoryStore(idf IdFactory, vf VersionFactory) VersionStore {
-	return NewLocalMemoryStore(jsonMarshaler, jsonUnmarshaler, idf, vf)
+func NewJsonMemoryStore(idf IdFactory, vf VersionFactory) VersionStore {
+	return NewMemoryStore(jsonMarshaler, jsonUnmarshaler, idf, vf)
 }
 
-func NewLocalMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore {
+func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore {
 	store := map[string][]byte{}
 
 	get := func(ctx context.Context, id string) ([]byte, error) {
