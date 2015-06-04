@@ -58,11 +58,11 @@
 				
 				<option value="file1">github.com\0xor1\sus\gae.go (0.0%)</option>
 				
-				<option value="file2">github.com\0xor1\sus\local_memory.go (100.0%)</option>
+				<option value="file2">github.com\0xor1\sus\memory.go (100.0%)</option>
 				
-				<option value="file3">github.com\0xor1\sus\mutex_byte.go (100.0%)</option>
+				<option value="file3">github.com\0xor1\sus\mutex_byte.go (94.4%)</option>
 				
-				<option value="file4">github.com\0xor1\sus\sus.go (100.0%)</option>
+				<option value="file4">github.com\0xor1\sus\sus.go (89.5%)</option>
 				
 				</select>
 			</div>
@@ -135,29 +135,42 @@ func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) VersionStore <sp
                 return datastore.NewKey(ctx, kind, id, 0, nil)
         }</span>
 
-        <span class="cov0" title="0">get := func(ctx context.Context, id string) (v Version, err error) </span><span class="cov0" title="0">{
-                v = vf()
-                key := getKey(ctx, id)
-                err = nds.Get(ctx, key, v)
-                return
-        }</span>
+        <span class="cov0" title="0">getMulti := func(ctx context.Context, ids []string) (vs []Version, err error) </span><span class="cov0" title="0">{
+                count := len(ids)
+                vs = make([]Version, count, count)
+                ks := make([]*datastore.Key, count, count)
+                for i := 0; i &lt; count; i++ </span><span class="cov0" title="0">{
+                        vs[i] = vf()
+                        ks[i] = getKey(ctx, ids[i])
+                }</span>
+                <span class="cov0" title="0">err = nds.GetMulti(ctx, ks, vs)
+                return</span>
+        }
 
-        <span class="cov0" title="0">put := func(ctx context.Context, id string, v Version) (err error) </span><span class="cov0" title="0">{
-                key := getKey(ctx, id)
-                _, err = nds.Put(ctx, key, v)
-                return
-        }</span>
+        <span class="cov0" title="0">putMulti := func(ctx context.Context, ids []string, vs []Version) (err error) </span><span class="cov0" title="0">{
+                count := len(ids)
+                ks := make([]*datastore.Key, count, count)
+                for i := 0; i &lt; count; i++ </span><span class="cov0" title="0">{
+                        ks[i] = getKey(ctx, ids[i])
+                }</span>
+                <span class="cov0" title="0">_, err = nds.PutMulti(ctx, ks, vs)
+                return</span>
+        }
 
-        <span class="cov0" title="0">del := func(ctx context.Context, id string) error </span><span class="cov0" title="0">{
-                key := getKey(ctx, id)
-                return nds.Delete(ctx, key)
-        }</span>
+        <span class="cov0" title="0">delMulti := func(ctx context.Context, ids []string) error </span><span class="cov0" title="0">{
+                count := len(ids)
+                ks := make([]*datastore.Key, count, count)
+                for i := 0; i &lt; count; i++ </span><span class="cov0" title="0">{
+                        ks[i] = getKey(ctx, ids[i])
+                }</span>
+                <span class="cov0" title="0">return nds.DeleteMulti(ctx, ks)</span>
+        }
 
         <span class="cov0" title="0">rit := func(ctx context.Context, tran Transaction) error </span><span class="cov0" title="0">{
                 return nds.RunInTransaction(ctx, tran, &amp;datastore.TransactionOptions{XG:true})
         }</span>
 
-        <span class="cov0" title="0">return NewVersionStore(get, put, del, idf, vf, rit)</span>
+        <span class="cov0" title="0">return NewVersionStore(getMulti, putMulti, delMulti, idf, vf, rit)</span>
 }</pre>
 		
 		<pre class="file" id="file2" style="display: none">package sus
@@ -166,11 +179,11 @@ import(
         `golang.org/x/net/context`
 )
 
-func NewJsonLocalMemoryStore(idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
-        return NewLocalMemoryStore(jsonMarshaler, jsonUnmarshaler, idf, vf)
+func NewJsonMemoryStore(idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
+        return NewMemoryStore(jsonMarshaler, jsonUnmarshaler, idf, vf)
 }</span>
 
-func NewLocalMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
+func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
         store := map[string][]byte{}
 
         get := func(ctx context.Context, id string) ([]byte, error) </span><span class="cov8" title="1">{
@@ -206,30 +219,54 @@ type Marshaler func(src Version) ([]byte, error)
 type Unmarshaler func(data []byte, dst Version) error
 type ByteGetter func(ctx context.Context, id string) ([]byte, error)
 type BytePutter func(ctx context.Context, id string, d []byte) error
+type Deleter func(ctx context.Context, id string) error
 
-func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Delete, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
+func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
         mtx := sync.Mutex{}
 
-        get := func(ctx context.Context, id string) (v Version, err error) </span><span class="cov8" title="1">{
-                d, err := bg(ctx, id)
-                if err == nil </span><span class="cov8" title="1">{
-                        v = vf()
-                        err = un(d, v)
+        getMulti := func(ctx context.Context, ids []string) ([]Version, error) </span><span class="cov8" title="1">{
+                var err error
+                var d []byte
+                count := len(ids)
+                vs := make([]Version, count, count)
+                for i := 0; i &lt; count; i++</span><span class="cov8" title="1">{
+                        d, err = bg(ctx, ids[i])
+                        if err != nil </span><span class="cov8" title="1">{
+                                break</span>
+                        }
+                        <span class="cov8" title="1">vs[i] = vf()
+                        err = un(d, vs[i])
+                        if err != nil </span><span class="cov0" title="0">{
+                                break</span>
+                        }
+                }
+                <span class="cov8" title="1">if err != nil </span><span class="cov8" title="1">{
+                        vs = nil
                 }</span>
-                <span class="cov8" title="1">return</span>
+                <span class="cov8" title="1">return vs, err</span>
         }
 
-        <span class="cov8" title="1">put := func(ctx context.Context, id string, v Version) error </span><span class="cov8" title="1">{
-                d, err := m(v)
-                if err == nil </span><span class="cov8" title="1">{
-                        err = bp(ctx, id, d)
-                }</span>
+        <span class="cov8" title="1">putMulti := func(ctx context.Context, ids []string, vs []Version) (err error) </span><span class="cov8" title="1">{
+                count := len(ids)
+                for i := 0; i &lt; count; i++</span><span class="cov8" title="1">{
+                        d, err := m(vs[i])
+                        if err == nil </span><span class="cov8" title="1">{
+                                err = bp(ctx, ids[i], d)
+                        }</span>
+                }
                 <span class="cov8" title="1">return err</span>
         }
 
-        <span class="cov8" title="1">del := func(ctx context.Context, id string) error </span><span class="cov8" title="1">{
-                return d(ctx, id)
-        }</span>
+        <span class="cov8" title="1">delMulti := func(ctx context.Context, ids []string) (err error) </span><span class="cov8" title="1">{
+                count := len(ids)
+                for i := 0; i &lt; count; i++ </span><span class="cov8" title="1">{
+                        err = d(ctx, ids[i])
+                        if err != nil </span><span class="cov0" title="0">{
+                                break</span>
+                        }
+                }
+                <span class="cov8" title="1">return</span>
+        }
 
         <span class="cov8" title="1">rit := func(ctx context.Context, tran Transaction) error </span><span class="cov8" title="1">{
                 mtx.Lock()
@@ -237,7 +274,7 @@ func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Delete, m Marshaler, un U
                 return tran(ctx)
         }</span>
 
-        <span class="cov8" title="1">return NewVersionStore(get, put, del, idf, vf, rit)</span>
+        <span class="cov8" title="1">return NewVersionStore(getMulti, putMulti, delMulti, idf, vf, rit)</span>
 }</pre>
 		
 		<pre class="file" id="file4" style="display: none">package sus
@@ -251,6 +288,7 @@ import(
 var(
         EntityDoesNotExist = errors.New(`entity does not exist`)
         NonsequentialUpdate = errors.New(`nonsequential update`)
+        LenIdsNotEqualToLenVs = errors.New(`len(ids) not equal to len(vs)`)
 )
 
 type Version interface{
@@ -275,70 +313,124 @@ func (vi *version) incrementVersion() <span class="cov8" title="1">{
 
 type VersionStore interface{
         Create(ctx context.Context) (id string, v Version, err error)
+        CreateMulti(ctx context.Context, count uint) (ids []string, vs []Version, err error)
         Read(ctx context.Context, id string) (v Version, err error)
+        ReadMulti(ctx context.Context, ids []string) (vs []Version, err error)
         Update(ctx context.Context, id string, v Version) error
+        UpdateMulti(ctx context.Context, ids []string, vs []Version) error
         Delete(ctx context.Context, id string) error
+        DeleteMulti(ctx context.Context, ids []string) error
 }
 
 type IdFactory func() string
 type VersionFactory func() Version
 type RunInTransaction func(ctx context.Context, tran Transaction) error
 type Transaction func(ctx context.Context) error
-type Get func(ctx context.Context, id string) (Version, error)
-type Put func(ctx context.Context, id string, v Version) error
-type Delete func(ctx context.Context, id string) error
+type GetMulti func(ctx context.Context, ids []string) ([]Version, error)
+type PutMulti func(ctx context.Context, ids []string, vs []Version) error
+type DeleteMulti func(ctx context.Context, ids []string) error
 
-func NewVersionStore(g Get, p Put, d Delete, idf IdFactory, vf VersionFactory, rit RunInTransaction) VersionStore <span class="cov8" title="1">{
-        return &amp;versionStore{g, p, d, idf, vf, rit}
+func NewVersionStore(gm GetMulti, pm PutMulti, dm DeleteMulti, idf IdFactory, vf VersionFactory, rit RunInTransaction) VersionStore <span class="cov8" title="1">{
+        return &amp;versionStore{gm, pm, dm, idf, vf, rit}
 }</span>
 
 type versionStore struct{
-        get                                 Get
-        put                                 Put
-        delete                                 Delete
+        getMulti                        GetMulti
+        putMulti                        PutMulti
+        deleteMulti                        DeleteMulti
         idFactory                         IdFactory
         versionFactory                 VersionFactory
         runInTransaction        RunInTransaction
 }
 
-func (vs *versionStore) Create(ctx context.Context) (id string, v Version, err error) <span class="cov8" title="1">{
-        err = vs.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
-                id = vs.idFactory()
-                v = vs.versionFactory()
-                return vs.put(ctx, id, v)
-        }</span>)
+func (s *versionStore) Create(ctx context.Context) (id string, v Version, err error) <span class="cov8" title="1">{
+        ids, vs, err := s.CreateMulti(ctx, 1)
+        if len(ids) == 1 &amp;&amp; len(vs) == 1 </span><span class="cov8" title="1">{
+                id = ids[0]
+                v = vs[0]
+        }</span>
         <span class="cov8" title="1">return</span>
 }
 
-func (vs *versionStore) Read(ctx context.Context, id string) (v Version, err error) <span class="cov8" title="1">{
-        err = vs.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
-                v, err = vs.get(ctx, id)
+func (s *versionStore) CreateMulti(ctx context.Context, count uint) (ids []string, vs []Version, err error) <span class="cov8" title="1">{
+        if count == 0 </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov8" title="1">ucount := int(count)
+        err = s.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
+                ids = make([]string, count, count)
+                vs = make([]Version, count, count)
+                for i := 0; i &lt; ucount; i++ </span><span class="cov8" title="1">{
+                        ids[i] = s.idFactory()
+                        vs[i] = s.versionFactory()
+                }</span>
+                <span class="cov8" title="1">return s.putMulti(ctx, ids, vs)</span>
+        })
+        <span class="cov8" title="1">return</span>
+}
+
+func (s *versionStore) Read(ctx context.Context, id string) (v Version, err error) <span class="cov8" title="1">{
+        vs, err := s.ReadMulti(ctx, []string{id})
+        if len(vs) == 1 </span><span class="cov8" title="1">{
+                v = vs[0]
+        }</span>
+        <span class="cov8" title="1">return</span>
+}
+
+func (s *versionStore) ReadMulti(ctx context.Context, ids []string) (vs []Version, err error) <span class="cov8" title="1">{
+        if len(ids) == 0 </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov8" title="1">err = s.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
+                vs, err = s.getMulti(ctx, ids)
                 return err
         }</span>)
         <span class="cov8" title="1">return</span>
 }
 
-func (vs *versionStore) Update(ctx context.Context, id string, v Version) (err error) <span class="cov8" title="1">{
-        err = vs.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
-                oldV, err := vs.get(ctx, id)
+func (s *versionStore) Update(ctx context.Context, id string, v Version) (err error) <span class="cov8" title="1">{
+        err = s.UpdateMulti(ctx, []string{id}, []Version{v})
+        return
+}</span>
+
+func (s *versionStore) UpdateMulti(ctx context.Context, ids []string, vs []Version) (err error) <span class="cov8" title="1">{
+        count := len(ids)
+        if count != len(vs) </span><span class="cov0" title="0">{
+                err = LenIdsNotEqualToLenVs
+                return
+        }</span>
+        <span class="cov8" title="1">if count == 0 </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov8" title="1">err = s.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
+                oldVs, err := s.getMulti(ctx, ids)
                 if err == nil </span><span class="cov8" title="1">{
-                        if oldV.getVersion() != v.getVersion() </span><span class="cov8" title="1">{
-                                err = NonsequentialUpdate
-                        }</span><span class="cov8" title="1"> else {
-                                v.incrementVersion()
-                                err = vs.put(ctx, id, v)
+                        for i := 0; i &lt; count; i++ </span><span class="cov8" title="1">{
+                                if oldVs[i].getVersion() != vs[i].getVersion() </span><span class="cov8" title="1">{
+                                        return NonsequentialUpdate
+                                }</span>
+                        }
+                        <span class="cov8" title="1">for i := 0; i &lt; count; i++ </span><span class="cov8" title="1">{
+                                vs[i].incrementVersion()
                         }</span>
+                        <span class="cov8" title="1">return s.putMulti(ctx, ids, vs)</span>
                 }
                 <span class="cov8" title="1">return err</span>
         })
         <span class="cov8" title="1">return</span>
 }
 
-func (vs *versionStore) Delete(ctx context.Context, id string) (err error) <span class="cov8" title="1">{
-        err = vs.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
-                return vs.delete(ctx, id)
+func (s *versionStore) Delete(ctx context.Context, id string) error <span class="cov8" title="1">{
+        return s.DeleteMulti(ctx, []string{id})
+}</span>
+
+func (s *versionStore) DeleteMulti(ctx context.Context, ids []string) error <span class="cov8" title="1">{
+        if len(ids) == 0 </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov8" title="1">return s.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
+                return s.deleteMulti(ctx, ids)
         }</span>)
-        <span class="cov8" title="1">return</span>
 }
 
 func jsonMarshaler(v Version)([]byte, error)<span class="cov8" title="1">{
