@@ -22,13 +22,5 @@ func NewLocalMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionF
 		delete(store, id)
 		return nil
 	}
-	return NewMutexByteStore(
-		get,
-		put,
-		del,
-		m,
-		un,
-		idf,
-		vf,
-	)
+	return NewMutexByteStore(get, put, del, m, un, idf, vf)
 }

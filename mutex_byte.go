@@ -12,15 +12,7 @@ type BytePutter func(ctx context.Context, id string, d []byte) error
 type Deleter func(ctx context.Context, id string) error
 
 func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore {
-	return &mutexByteStore{
-		get:			bg,
-		put:			bp,
-		delete:			d,
-		marshal: 		m,
-		unmarshal: 		un,
-		idFactory: 		idf,
-		versionFactory: vf,
-	}
+	return &mutexByteStore{bg, bp, d, m, un, idf, vf, sync.Mutex{}}
 }
 
 type mutexByteStore struct {
@@ -29,8 +21,8 @@ type mutexByteStore struct {
 	delete			Deleter
 	marshal			Marshaler
 	unmarshal 		Unmarshaler
-	versionFactory 	VersionFactory
 	idFactory		IdFactory
+	versionFactory 	VersionFactory
 	mtx     		sync.Mutex
 }
 

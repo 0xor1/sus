@@ -99,15 +99,7 @@ func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, 
                 <span class="cov8" title="1">del := func(ctx context.Context, id string) error </span><span class="cov8" title="1">{
                         return os.Remove(getFileName(id))
                 }</span>
-                <span class="cov8" title="1">return NewMutexByteStore(
-                        get,
-                        put,
-                        del,
-                        m,
-                        un,
-                        idf,
-                        vf,
-                ), nil</span>
+                <span class="cov8" title="1">return NewMutexByteStore(get, put, del, m, un, idf, vf), nil</span>
         }
         <span class="cov8" title="1">return nil, err</span>
 }</pre>
@@ -198,15 +190,7 @@ func NewLocalMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionF
                 delete(store, id)
                 return nil
         }</span>
-        <span class="cov8" title="1">return NewMutexByteStore(
-                get,
-                put,
-                del,
-                m,
-                un,
-                idf,
-                vf,
-        )</span>
+        <span class="cov8" title="1">return NewMutexByteStore(get, put, del, m, un, idf, vf)</span>
 }</pre>
 		
 		<pre class="file" id="file3" style="display: none">package sus
@@ -223,15 +207,7 @@ type BytePutter func(ctx context.Context, id string, d []byte) error
 type Deleter func(ctx context.Context, id string) error
 
 func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
-        return &amp;mutexByteStore{
-                get:                        bg,
-                put:                        bp,
-                delete:                        d,
-                marshal:                 m,
-                unmarshal:                 un,
-                idFactory:                 idf,
-                versionFactory: vf,
-        }
+        return &amp;mutexByteStore{bg, bp, d, m, un, idf, vf, sync.Mutex{}}
 }</span>
 
 type mutexByteStore struct {
@@ -240,8 +216,8 @@ type mutexByteStore struct {
         delete                        Deleter
         marshal                        Marshaler
         unmarshal                 Unmarshaler
-        versionFactory         VersionFactory
         idFactory                IdFactory
+        versionFactory         VersionFactory
         mtx                     sync.Mutex
 }
 

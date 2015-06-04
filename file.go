@@ -21,15 +21,7 @@ func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, 
 		del := func(ctx context.Context, id string) error {
 			return os.Remove(getFileName(id))
 		}
-		return NewMutexByteStore(
-			get,
-			put,
-			del,
-			m,
-			un,
-			idf,
-			vf,
-		), nil
+		return NewMutexByteStore(get, put, del, m, un, idf, vf), nil
 	}
 	return nil, err
 }
