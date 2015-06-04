@@ -154,7 +154,7 @@ func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) VersionStore <sp
         }</span>
 
         <span class="cov0" title="0">rit := func(ctx context.Context, tran Transaction) error </span><span class="cov0" title="0">{
-                return nds.RunInTransaction(ctx, tran, &amp;datastore.TransactionOptions{XG:false})
+                return nds.RunInTransaction(ctx, tran, &amp;datastore.TransactionOptions{XG:true})
         }</span>
 
         <span class="cov0" title="0">return NewVersionStore(get, put, del, idf, vf, rit)</span>
@@ -270,7 +270,7 @@ func (vi *version) getVersion() int<span class="cov8" title="1">{
 }</span>
 
 func (vi *version) incrementVersion() <span class="cov8" title="1">{
-        *vi = *vi + 1
+        *vi += 1
 }</span>
 
 type VersionStore interface{
