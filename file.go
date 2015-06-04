@@ -2,88 +2,34 @@ package sus
 
 import(
 	`os`
-	`sync`
 	`io/ioutil`
 	`golang.org/x/net/context`
 )
 
-func NewFileStore(storeDir string, fileExtension string, m Marshaler, um Unmarshaler, idf IdFactory, vf VersionFactory) (VersionStore, error) {
+func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) (VersionStore, error) {
 	err := os.MkdirAll(storeDir, os.ModeDir)
 	if err == nil {
-		return &fileStore{
-			sd: storeDir,
-			fe: fileExtension,
-			m: m,
-			um: um,
-			idf: idf,
-			vf: vf,
-		}, nil
+		getFileName := func(id string) string {
+			return storeDir + `/` + id + `.` + fileExt
+		}
+		get := func(ctx context.Context, id string) ([]byte, error) {
+			return ioutil.ReadFile(getFileName(id))
+		}
+		put := func(ctx context.Context, id string, d []byte) error {
+			return ioutil.WriteFile(getFileName(id), d, os.ModeAppend)
+		}
+		del := func(ctx context.Context, id string) error {
+			return os.Remove(getFileName(id))
+		}
+		return NewMutexByteStore(
+			get,
+			put,
+			del,
+			m,
+			un,
+			idf,
+			vf,
+		), nil
 	}
 	return nil, err
-}
-
-type fileStore struct {
-	sd	string
-	fe	string
-	m	Marshaler
-	um	Unmarshaler
-	idf IdFactory
-	vf VersionFactory
-	mtx sync.Mutex
-}
-
-func (fs *fileStore) getFileName(id string) string {
-	return fs.sd + `/` + id + `.` + fs.fe
-}
-
-func (fs *fileStore) Create(ctx context.Context) (id string, v Version, err error) {
-	fs.mtx.Lock()
-	defer fs.mtx.Unlock()
-	id = fs.idf()
-	v = fs.vf()
-	d, err := fs.m(v)
-	if err == nil {
-		err = ioutil.WriteFile(fs.getFileName(id), d, os.ModeAppend)
-	}
-	return
-}
-
-func (fs *fileStore) Read(ctx context.Context, id string) (v Version, err error) {
-	fs.mtx.Lock()
-	defer fs.mtx.Unlock()
-	d, err := ioutil.ReadFile(fs.getFileName(id))
-	if err == nil {
-		v = fs.vf()
-		err = fs.um(d, v)
-	}
-	return
-}
-
-func (fs *fileStore) Update(ctx context.Context, id string, v Version) (err error) {
-	fs.mtx.Lock()
-	defer fs.mtx.Unlock()
-	oldD, err := ioutil.ReadFile(fs.getFileName(id))
-	if err == nil {
-		oldV := fs.vf()
-		err = fs.um(oldD, oldV)
-		if oldV.getVersion() != v.getVersion() {
-			err = NonsequentialUpdate
-		}
-		if err == nil {
-			v.incrementVersion()
-			var d []byte
-			d, err = fs.m(v)
-			if err == nil {
-				err = ioutil.WriteFile(fs.getFileName(id), d, 0644)
-			}
-		}
-	}
-	return
-}
-
-func (fs *fileStore) Delete(ctx context.Context, id string) (err error) {
-	fs.mtx.Lock()
-	defer fs.mtx.Unlock()
-	err = os.Remove(fs.getFileName(id))
-	return
 }

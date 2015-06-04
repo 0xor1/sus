@@ -1,81 +1,34 @@
 package sus
 
 import(
-	`sync`
 	`golang.org/x/net/context`
 )
 
-func NewLocalMemoryStore(m Marshaler, um Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore {
-	return &localMemoryStore{
-		store: map[string][]byte{},
-		m: m,
-		um: um,
-		idf: idf,
-		vf: vf,
-	}
-}
-
-type localMemoryStore struct {
-	store   map[string][]byte
-	m		Marshaler
-	um		Unmarshaler
-	vf 		VersionFactory
-	idf     IdFactory
-	mtx     sync.Mutex
-}
-
-func (lms *localMemoryStore) Create(ctx context.Context) (id string, v Version, err error) {
-	id = lms.idf()
-	v = lms.vf()
-	d, err := lms.m(v)
-	if err == nil {
-		lms.store[id] = d
-	}
-	lms.mtx.Lock()
-	defer lms.mtx.Unlock()
-	return
-}
-
-func (lms *localMemoryStore) Read(ctx context.Context, id string) (v Version, err error) {
-	lms.mtx.Lock()
-	defer lms.mtx.Unlock()
-	d, exists := lms.store[id]
-	if !exists {
-		err = EntityDoesNotExist
-	} else {
-		v = lms.vf()
-		err = lms.um(d, v)
-	}
-	return
-}
-
-func (lms *localMemoryStore) Update(ctx context.Context, id string, v Version) (err error) {
-	lms.mtx.Lock()
-	defer lms.mtx.Unlock()
-	oldD, exists := lms.store[id]
-	if !exists {
-		err = EntityDoesNotExist
-	} else {
-		oldV := lms.vf()
-		err = lms.um(oldD, oldV)
-		if oldV.getVersion() != v.getVersion() {
-			err = NonsequentialUpdate
+func NewLocalMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore {
+	store := map[string][]byte{}
+	get := func(ctx context.Context, id string) ([]byte, error) {
+		var err error
+		d, exists := store[id]
+		if !exists {
+			err = EntityDoesNotExist
 		}
-		if err == nil {
-			v.incrementVersion()
-			var d []byte
-			d, err = lms.m(v)
-			if err == nil {
-				lms.store[id] = d
-			}
-		}
+		return d, err
 	}
-	return
-}
-
-func (lms *localMemoryStore) Delete(ctx context.Context, id string) (err error) {
-	lms.mtx.Lock()
-	defer lms.mtx.Unlock()
-	delete(lms.store, id)
-	return
+	put := func(ctx context.Context, id string, d []byte) error {
+		store[id] = d
+		return nil
+	}
+	del := func(ctx context.Context, id string) error {
+		delete(store, id)
+		return nil
+	}
+	return NewMutexByteStore(
+		get,
+		put,
+		del,
+		m,
+		un,
+		idf,
+		vf,
+	)
 }

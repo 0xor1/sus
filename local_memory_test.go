@@ -105,8 +105,12 @@ func newFooLocalMemoryStore() *fooLocalMemoryStore {
 	idSrc := 0
 	return &fooLocalMemoryStore{
 		inner: NewLocalMemoryStore(
-			json.Marshal,
-			json.Unmarshal,
+			func(v Version)([]byte, error){
+				return json.Marshal(v)
+			},
+			func(d []byte, v Version) error{
+				return json.Unmarshal(d, v)
+			},
 			func() string {
 				idSrc++
 				return fmt.Sprintf(`%d`, idSrc)

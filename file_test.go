@@ -119,10 +119,14 @@ func Test_FileStore_Delete_success(t *testing.T){
 func newFooFileStore(dir string, m Marshaler, um Unmarshaler) (*fooFileStore, error) {
 	idSrc := 0
 	if m == nil {
-		m = json.Marshal
+		m = func(v Version)([]byte, error){
+			return json.Marshal(v)
+		}
 	}
 	if um == nil {
-		um = json.Unmarshal
+		um = func(d []byte, v Version) error{
+			return json.Unmarshal(d, v)
+		}
 	}
 	inner, err := NewFileStore(
 		dir,

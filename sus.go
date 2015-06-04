@@ -10,9 +10,6 @@ var(
 	NonsequentialUpdate = errors.New(`nonsequential update`)
 )
 
-type Marshaler func(src interface{}) ([]byte, error)
-type Unmarshaler func(data []byte, dst interface{}) error
-
 type Version interface{
 	getVersion() int
 	incrementVersion()
