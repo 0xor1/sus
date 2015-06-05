@@ -11,7 +11,8 @@ type ByteGetter func(ctx context.Context, id string) ([]byte, error)
 type BytePutter func(ctx context.Context, id string, d []byte) error
 type Deleter func(ctx context.Context, id string) error
 
-func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore {
+// Creates and configures a store that stores entities by converting them to and from []byte and ensures versioning correctness with mutex locks.
+func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) Store {
 	mtx := sync.Mutex{}
 
 	getMulti := func(ctx context.Context, ids []string) ([]Version, error) {
@@ -67,5 +68,5 @@ func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un 
 		return tran(ctx)
 	}
 
-	return NewVersionStore(getMulti, putMulti, delMulti, idf, vf, rit)
+	return NewStore(getMulti, putMulti, delMulti, idf, vf, rit)
 }

@@ -6,7 +6,9 @@ import(
 	`google.golang.org/appengine/datastore`
 )
 
-func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) VersionStore {
+// Creates and configures a store that stores entities in Google AppEngines memcache and datastore.
+// github.com/qedus/nds is used for strongly consistent automatic caching.
+func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) Store {
 	getKey := func(ctx context.Context, id string) *datastore.Key {
 		return datastore.NewKey(ctx, kind, id, 0, nil)
 	}
@@ -46,5 +48,5 @@ func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) VersionStore {
 		return nds.RunInTransaction(ctx, tran, &datastore.TransactionOptions{XG:true})
 	}
 
-	return NewVersionStore(getMulti, putMulti, delMulti, idf, vf, rit)
+	return NewStore(getMulti, putMulti, delMulti, idf, vf, rit)
 }

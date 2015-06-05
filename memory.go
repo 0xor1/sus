@@ -4,11 +4,13 @@ import(
 	`golang.org/x/net/context`
 )
 
-func NewJsonMemoryStore(idf IdFactory, vf VersionFactory) VersionStore {
+// Creates and configures a store that stores entities by converting them to and from json []byte data and keeps them in the local system memory.
+func NewJsonMemoryStore(idf IdFactory, vf VersionFactory) Store {
 	return NewMemoryStore(jsonMarshaler, jsonUnmarshaler, idf, vf)
 }
 
-func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore {
+// Creates and configures a store that stores entities by converting them to and from []byte and keeps them in the local system memory.
+func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) Store {
 	store := map[string][]byte{}
 
 	get := func(ctx context.Context, id string) ([]byte, error) {

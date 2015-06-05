@@ -6,11 +6,13 @@ import(
 	`golang.org/x/net/context`
 )
 
-func NewJsonFileStore(storeDir string, idf IdFactory, vf VersionFactory) (VersionStore, error) {
+// Creates and configures a store that stores entities by converting them to and from json []byte data and keeps them in the local file system.
+func NewJsonFileStore(storeDir string, idf IdFactory, vf VersionFactory) (Store, error) {
 	return NewFileStore(storeDir, `json`, jsonMarshaler, jsonUnmarshaler, idf, vf)
 }
 
-func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) (VersionStore, error) {
+// Creates and configures a store that stores entities by converting them to and from []byte and keeps them in the local file system.
+func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) (Store, error) {
 	err := os.MkdirAll(storeDir, os.ModeDir)
 
 	if err == nil {

@@ -180,7 +180,7 @@ func Test_FileStore_Read_with_unmarshaler_error(t *testing.T){
 func newFooFileStore(dir string, fileExt string, m Marshaler, un Unmarshaler) (*fooFileStore, error) {
 	idSrc := 0
 	var err error
-	var inner VersionStore
+	var inner Store
 	idf := func() string {
 		idSrc++
 		return fmt.Sprintf(`%d`, idSrc)
@@ -202,7 +202,7 @@ func newFooFileStore(dir string, fileExt string, m Marshaler, un Unmarshaler) (*
 }
 
 type fooFileStore struct {
-	inner VersionStore
+	inner Store
 }
 
 func (ffs *fooFileStore) Create() (id string, f *foo, err error) {

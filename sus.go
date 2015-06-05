@@ -1,3 +1,8 @@
+/*
+Package sus provides data storage for entities that require sequential updates.
+Any type of datastore can be created in the same manner as those available by default
+in sus, Memory/File/AppEngine.
+ */
 package sus
 
 import(
@@ -7,16 +12,21 @@ import(
 )
 
 var(
+	// Returned by Read calls when the entity does not exist.
 	EntityDoesNotExist = errors.New(`entity does not exist`)
+	// Returned by Update calls when the entity has not been updated sequentially.
 	NonsequentialUpdate = errors.New(`nonsequential update`)
+	// Returned by UpdateMulti when the number of id's is not equal to the number of entities provided.
 	LenIdsNotEqualToLenVs = errors.New(`len(ids) not equal to len(vs)`)
 )
 
+// The interface that struct entities must include as anonymous fields in order to be used with sus stores.
 type Version interface{
 	getVersion() int
 	incrementVersion()
 }
 
+// The constructor to initialise the anonymous Version fields in struct entities.
 func NewVersion() Version {
 	vi := version(0)
 	return &vi
@@ -32,7 +42,8 @@ func (vi *version) incrementVersion() {
 	*vi += 1
 }
 
-type VersionStore interface{
+// The core sus interface.
+type Store interface{
 	Create(ctx context.Context) (id string, v Version, err error)
 	CreateMulti(ctx context.Context, count uint) (ids []string, vs []Version, err error)
 	Read(ctx context.Context, id string) (v Version, err error)
@@ -51,11 +62,12 @@ type GetMulti func(ctx context.Context, ids []string) ([]Version, error)
 type PutMulti func(ctx context.Context, ids []string, vs []Version) error
 type DeleteMulti func(ctx context.Context, ids []string) error
 
-func NewVersionStore(gm GetMulti, pm PutMulti, dm DeleteMulti, idf IdFactory, vf VersionFactory, rit RunInTransaction) VersionStore {
-	return &versionStore{gm, pm, dm, idf, vf, rit}
+// Create and configure a core store.
+func NewStore(gm GetMulti, pm PutMulti, dm DeleteMulti, idf IdFactory, vf VersionFactory, rit RunInTransaction) Store {
+	return &store{gm, pm, dm, idf, vf, rit}
 }
 
-type versionStore struct{
+type store struct{
 	getMulti			GetMulti
 	putMulti			PutMulti
 	deleteMulti			DeleteMulti
@@ -64,7 +76,8 @@ type versionStore struct{
 	runInTransaction	RunInTransaction
 }
 
-func (s *versionStore) Create(ctx context.Context) (id string, v Version, err error) {
+// Creates a new versioned entity.
+func (s *store) Create(ctx context.Context) (id string, v Version, err error) {
 	ids, vs, err := s.CreateMulti(ctx, 1)
 	if len(ids) == 1 && len(vs) == 1 {
 		id = ids[0]
@@ -73,7 +86,8 @@ func (s *versionStore) Create(ctx context.Context) (id string, v Version, err er
 	return
 }
 
-func (s *versionStore) CreateMulti(ctx context.Context, count uint) (ids []string, vs []Version, err error) {
+// Creates a set of new versioned entities.
+func (s *store) CreateMulti(ctx context.Context, count uint) (ids []string, vs []Version, err error) {
 	if count == 0 {
 		return
 	}
@@ -90,7 +104,8 @@ func (s *versionStore) CreateMulti(ctx context.Context, count uint) (ids []strin
 	return
 }
 
-func (s *versionStore) Read(ctx context.Context, id string) (v Version, err error) {
+// Fetches the versioned entity with id.
+func (s *store) Read(ctx context.Context, id string) (v Version, err error) {
 	vs, err := s.ReadMulti(ctx, []string{id})
 	if len(vs) == 1 {
 		v = vs[0]
@@ -98,7 +113,8 @@ func (s *versionStore) Read(ctx context.Context, id string) (v Version, err erro
 	return
 }
 
-func (s *versionStore) ReadMulti(ctx context.Context, ids []string) (vs []Version, err error) {
+// Fetches the versioned entities with id's.
+func (s *store) ReadMulti(ctx context.Context, ids []string) (vs []Version, err error) {
 	if len(ids) == 0 {
 		return
 	}
@@ -109,12 +125,14 @@ func (s *versionStore) ReadMulti(ctx context.Context, ids []string) (vs []Versio
 	return
 }
 
-func (s *versionStore) Update(ctx context.Context, id string, v Version) (err error) {
+// Updates the versioned entity with id.
+func (s *store) Update(ctx context.Context, id string, v Version) (err error) {
 	err = s.UpdateMulti(ctx, []string{id}, []Version{v})
 	return
 }
 
-func (s *versionStore) UpdateMulti(ctx context.Context, ids []string, vs []Version) (err error) {
+// Updates the versioned entities with id's.
+func (s *store) UpdateMulti(ctx context.Context, ids []string, vs []Version) (err error) {
 	count := len(ids)
 	if count != len(vs) {
 		err = LenIdsNotEqualToLenVs
@@ -141,11 +159,13 @@ func (s *versionStore) UpdateMulti(ctx context.Context, ids []string, vs []Versi
 	return
 }
 
-func (s *versionStore) Delete(ctx context.Context, id string) error {
+// Deletes the versioned entity with id.
+func (s *store) Delete(ctx context.Context, id string) error {
 	return s.DeleteMulti(ctx, []string{id})
 }
 
-func (s *versionStore) DeleteMulti(ctx context.Context, ids []string) error {
+// Deletes the versioned entities with id's.
+func (s *store) DeleteMulti(ctx context.Context, ids []string) error {
 	if len(ids) == 0 {
 		return nil
 	}

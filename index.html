@@ -84,11 +84,13 @@ import(
         `golang.org/x/net/context`
 )
 
-func NewJsonFileStore(storeDir string, idf IdFactory, vf VersionFactory) (VersionStore, error) <span class="cov8" title="1">{
+// Creates and configures a store that stores entities by converting them to and from json []byte data and keeps them in the local file system.
+func NewJsonFileStore(storeDir string, idf IdFactory, vf VersionFactory) (Store, error) <span class="cov8" title="1">{
         return NewFileStore(storeDir, `json`, jsonMarshaler, jsonUnmarshaler, idf, vf)
 }</span>
 
-func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) (VersionStore, error) <span class="cov8" title="1">{
+// Creates and configures a store that stores entities by converting them to and from []byte and keeps them in the local file system.
+func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) (Store, error) <span class="cov8" title="1">{
         err := os.MkdirAll(storeDir, os.ModeDir)
 
         if err == nil </span><span class="cov8" title="1">{
@@ -130,7 +132,9 @@ import(
         `google.golang.org/appengine/datastore`
 )
 
-func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) VersionStore <span class="cov0" title="0">{
+// Creates and configures a store that stores entities in Google AppEngines memcache and datastore.
+// github.com/qedus/nds is used for strongly consistent automatic caching.
+func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) Store <span class="cov0" title="0">{
         getKey := func(ctx context.Context, id string) *datastore.Key </span><span class="cov0" title="0">{
                 return datastore.NewKey(ctx, kind, id, 0, nil)
         }</span>
@@ -170,7 +174,7 @@ func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) VersionStore <sp
                 return nds.RunInTransaction(ctx, tran, &amp;datastore.TransactionOptions{XG:true})
         }</span>
 
-        <span class="cov0" title="0">return NewVersionStore(getMulti, putMulti, delMulti, idf, vf, rit)</span>
+        <span class="cov0" title="0">return NewStore(getMulti, putMulti, delMulti, idf, vf, rit)</span>
 }</pre>
 		
 		<pre class="file" id="file2" style="display: none">package sus
@@ -179,11 +183,13 @@ import(
         `golang.org/x/net/context`
 )
 
-func NewJsonMemoryStore(idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
+// Creates and configures a store that stores entities by converting them to and from json []byte data and keeps them in the local system memory.
+func NewJsonMemoryStore(idf IdFactory, vf VersionFactory) Store <span class="cov8" title="1">{
         return NewMemoryStore(jsonMarshaler, jsonUnmarshaler, idf, vf)
 }</span>
 
-func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
+// Creates and configures a store that stores entities by converting them to and from []byte and keeps them in the local system memory.
+func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) Store <span class="cov8" title="1">{
         store := map[string][]byte{}
 
         get := func(ctx context.Context, id string) ([]byte, error) </span><span class="cov8" title="1">{
@@ -221,7 +227,8 @@ type ByteGetter func(ctx context.Context, id string) ([]byte, error)
 type BytePutter func(ctx context.Context, id string, d []byte) error
 type Deleter func(ctx context.Context, id string) error
 
-func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) VersionStore <span class="cov8" title="1">{
+// Creates and configures a store that stores entities by converting them to and from []byte and ensures versioning correctness with mutex locks.
+func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) Store <span class="cov8" title="1">{
         mtx := sync.Mutex{}
 
         getMulti := func(ctx context.Context, ids []string) ([]Version, error) </span><span class="cov8" title="1">{
@@ -277,10 +284,15 @@ func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un 
                 return tran(ctx)
         }</span>
 
-        <span class="cov8" title="1">return NewVersionStore(getMulti, putMulti, delMulti, idf, vf, rit)</span>
+        <span class="cov8" title="1">return NewStore(getMulti, putMulti, delMulti, idf, vf, rit)</span>
 }</pre>
 		
-		<pre class="file" id="file4" style="display: none">package sus
+		<pre class="file" id="file4" style="display: none">/*
+Package sus provides data storage for entities that require sequential updates.
+Any type of datastore can be created in the same manner as those available by default
+in sus, Memory/File/AppEngine.
+ */
+package sus
 
 import(
         `errors`
@@ -289,16 +301,21 @@ import(
 )
 
 var(
+        // Returned by Read calls when the entity does not exist.
         EntityDoesNotExist = errors.New(`entity does not exist`)
+        // Returned by Update calls when the entity has not been updated sequentially.
         NonsequentialUpdate = errors.New(`nonsequential update`)
+        // Returned by UpdateMulti when the number of id's is not equal to the number of entities provided.
         LenIdsNotEqualToLenVs = errors.New(`len(ids) not equal to len(vs)`)
 )
 
+// The interface that struct entities must include as anonymous fields in order to be used with sus stores.
 type Version interface{
         getVersion() int
         incrementVersion()
 }
 
+// The constructor to initialise the anonymous Version fields in struct entities.
 func NewVersion() Version <span class="cov8" title="1">{
         vi := version(0)
         return &amp;vi
@@ -314,7 +331,8 @@ func (vi *version) incrementVersion() <span class="cov8" title="1">{
         *vi += 1
 }</span>
 
-type VersionStore interface{
+// The core sus interface.
+type Store interface{
         Create(ctx context.Context) (id string, v Version, err error)
         CreateMulti(ctx context.Context, count uint) (ids []string, vs []Version, err error)
         Read(ctx context.Context, id string) (v Version, err error)
@@ -333,11 +351,12 @@ type GetMulti func(ctx context.Context, ids []string) ([]Version, error)
 type PutMulti func(ctx context.Context, ids []string, vs []Version) error
 type DeleteMulti func(ctx context.Context, ids []string) error
 
-func NewVersionStore(gm GetMulti, pm PutMulti, dm DeleteMulti, idf IdFactory, vf VersionFactory, rit RunInTransaction) VersionStore <span class="cov8" title="1">{
-        return &amp;versionStore{gm, pm, dm, idf, vf, rit}
+// Create and configure a core store.
+func NewStore(gm GetMulti, pm PutMulti, dm DeleteMulti, idf IdFactory, vf VersionFactory, rit RunInTransaction) Store <span class="cov8" title="1">{
+        return &amp;store{gm, pm, dm, idf, vf, rit}
 }</span>
 
-type versionStore struct{
+type store struct{
         getMulti                        GetMulti
         putMulti                        PutMulti
         deleteMulti                        DeleteMulti
@@ -346,7 +365,8 @@ type versionStore struct{
         runInTransaction        RunInTransaction
 }
 
-func (s *versionStore) Create(ctx context.Context) (id string, v Version, err error) <span class="cov8" title="1">{
+// Creates a new versioned entity.
+func (s *store) Create(ctx context.Context) (id string, v Version, err error) <span class="cov8" title="1">{
         ids, vs, err := s.CreateMulti(ctx, 1)
         if len(ids) == 1 &amp;&amp; len(vs) == 1 </span><span class="cov8" title="1">{
                 id = ids[0]
@@ -355,7 +375,8 @@ func (s *versionStore) Create(ctx context.Context) (id string, v Version, err er
         <span class="cov8" title="1">return</span>
 }
 
-func (s *versionStore) CreateMulti(ctx context.Context, count uint) (ids []string, vs []Version, err error) <span class="cov8" title="1">{
+// Creates a set of new versioned entities.
+func (s *store) CreateMulti(ctx context.Context, count uint) (ids []string, vs []Version, err error) <span class="cov8" title="1">{
         if count == 0 </span><span class="cov8" title="1">{
                 return
         }</span>
@@ -372,7 +393,8 @@ func (s *versionStore) CreateMulti(ctx context.Context, count uint) (ids []strin
         <span class="cov8" title="1">return</span>
 }
 
-func (s *versionStore) Read(ctx context.Context, id string) (v Version, err error) <span class="cov8" title="1">{
+// Fetches the versioned entity with id.
+func (s *store) Read(ctx context.Context, id string) (v Version, err error) <span class="cov8" title="1">{
         vs, err := s.ReadMulti(ctx, []string{id})
         if len(vs) == 1 </span><span class="cov8" title="1">{
                 v = vs[0]
@@ -380,7 +402,8 @@ func (s *versionStore) Read(ctx context.Context, id string) (v Version, err erro
         <span class="cov8" title="1">return</span>
 }
 
-func (s *versionStore) ReadMulti(ctx context.Context, ids []string) (vs []Version, err error) <span class="cov8" title="1">{
+// Fetches the versioned entities with id's.
+func (s *store) ReadMulti(ctx context.Context, ids []string) (vs []Version, err error) <span class="cov8" title="1">{
         if len(ids) == 0 </span><span class="cov8" title="1">{
                 return
         }</span>
@@ -391,12 +414,14 @@ func (s *versionStore) ReadMulti(ctx context.Context, ids []string) (vs []Versio
         <span class="cov8" title="1">return</span>
 }
 
-func (s *versionStore) Update(ctx context.Context, id string, v Version) (err error) <span class="cov8" title="1">{
+// Updates the versioned entity with id.
+func (s *store) Update(ctx context.Context, id string, v Version) (err error) <span class="cov8" title="1">{
         err = s.UpdateMulti(ctx, []string{id}, []Version{v})
         return
 }</span>
 
-func (s *versionStore) UpdateMulti(ctx context.Context, ids []string, vs []Version) (err error) <span class="cov8" title="1">{
+// Updates the versioned entities with id's.
+func (s *store) UpdateMulti(ctx context.Context, ids []string, vs []Version) (err error) <span class="cov8" title="1">{
         count := len(ids)
         if count != len(vs) </span><span class="cov8" title="1">{
                 err = LenIdsNotEqualToLenVs
@@ -423,11 +448,13 @@ func (s *versionStore) UpdateMulti(ctx context.Context, ids []string, vs []Versi
         <span class="cov8" title="1">return</span>
 }
 
-func (s *versionStore) Delete(ctx context.Context, id string) error <span class="cov8" title="1">{
+// Deletes the versioned entity with id.
+func (s *store) Delete(ctx context.Context, id string) error <span class="cov8" title="1">{
         return s.DeleteMulti(ctx, []string{id})
 }</span>
 
-func (s *versionStore) DeleteMulti(ctx context.Context, ids []string) error <span class="cov8" title="1">{
+// Deletes the versioned entities with id's.
+func (s *store) DeleteMulti(ctx context.Context, ids []string) error <span class="cov8" title="1">{
         if len(ids) == 0 </span><span class="cov8" title="1">{
                 return nil
         }</span>

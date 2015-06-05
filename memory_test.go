@@ -170,7 +170,7 @@ type foo struct{
 
 func newFooMemoryStore(m Marshaler, un Unmarshaler) *fooMemoryStore {
 	idSrc := 0
-	var inner VersionStore
+	var inner Store
 	idf := func() string {
 		idSrc++
 		return fmt.Sprintf(`%d`, idSrc)
@@ -189,7 +189,7 @@ func newFooMemoryStore(m Marshaler, un Unmarshaler) *fooMemoryStore {
 }
 
 type fooMemoryStore struct {
-	inner VersionStore
+	inner Store
 }
 
 func (fms *fooMemoryStore) Create() (id string, f *foo, err error) {
