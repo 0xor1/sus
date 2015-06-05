@@ -60,7 +60,7 @@
 				
 				<option value="file2">github.com\0xor1\sus\memory.go (100.0%)</option>
 				
-				<option value="file3">github.com\0xor1\sus\mutex_byte.go (97.4%)</option>
+				<option value="file3">github.com\0xor1\sus\mutex_byte.go (100.0%)</option>
 				
 				<option value="file4">github.com\0xor1\sus\sus.go (100.0%)</option>
 				
@@ -264,7 +264,7 @@ func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un 
                 count := len(ids)
                 for i := 0; i &lt; count; i++ </span><span class="cov8" title="1">{
                         err = d(ctx, ids[i])
-                        if err != nil </span><span class="cov0" title="0">{
+                        if err != nil </span><span class="cov8" title="1">{
                                 break</span>
                         }
                 }
