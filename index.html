@@ -60,9 +60,9 @@
 				
 				<option value="file2">github.com\0xor1\sus\memory.go (100.0%)</option>
 				
-				<option value="file3">github.com\0xor1\sus\mutex_byte.go (94.4%)</option>
+				<option value="file3">github.com\0xor1\sus\mutex_byte.go (100.0%)</option>
 				
-				<option value="file4">github.com\0xor1\sus\sus.go (89.5%)</option>
+				<option value="file4">github.com\0xor1\sus\sus.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -236,7 +236,7 @@ func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un 
                         }
                         <span class="cov8" title="1">vs[i] = vf()
                         err = un(d, vs[i])
-                        if err != nil </span><span class="cov0" title="0">{
+                        if err != nil </span><span class="cov8" title="1">{
                                 break</span>
                         }
                 }
@@ -246,13 +246,16 @@ func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un 
                 <span class="cov8" title="1">return vs, err</span>
         }
 
-        <span class="cov8" title="1">putMulti := func(ctx context.Context, ids []string, vs []Version) (err error) </span><span class="cov8" title="1">{
+        <span class="cov8" title="1">putMulti := func(ctx context.Context, ids []string, vs []Version) error </span><span class="cov8" title="1">{
+                var err error
+                var d []byte
                 count := len(ids)
                 for i := 0; i &lt; count; i++</span><span class="cov8" title="1">{
-                        d, err := m(vs[i])
-                        if err == nil </span><span class="cov8" title="1">{
-                                err = bp(ctx, ids[i], d)
-                        }</span>
+                        d, err = m(vs[i])
+                        if err != nil </span><span class="cov8" title="1">{
+                                break</span>
+                        }
+                        <span class="cov8" title="1">err = bp(ctx, ids[i], d)</span>
                 }
                 <span class="cov8" title="1">return err</span>
         }
@@ -261,7 +264,7 @@ func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un 
                 count := len(ids)
                 for i := 0; i &lt; count; i++ </span><span class="cov8" title="1">{
                         err = d(ctx, ids[i])
-                        if err != nil </span><span class="cov0" title="0">{
+                        if err != nil </span><span class="cov8" title="1">{
                                 break</span>
                         }
                 }
@@ -353,7 +356,7 @@ func (s *versionStore) Create(ctx context.Context) (id string, v Version, err er
 }
 
 func (s *versionStore) CreateMulti(ctx context.Context, count uint) (ids []string, vs []Version, err error) <span class="cov8" title="1">{
-        if count == 0 </span><span class="cov0" title="0">{
+        if count == 0 </span><span class="cov8" title="1">{
                 return
         }</span>
         <span class="cov8" title="1">ucount := int(count)
@@ -378,7 +381,7 @@ func (s *versionStore) Read(ctx context.Context, id string) (v Version, err erro
 }
 
 func (s *versionStore) ReadMulti(ctx context.Context, ids []string) (vs []Version, err error) <span class="cov8" title="1">{
-        if len(ids) == 0 </span><span class="cov0" title="0">{
+        if len(ids) == 0 </span><span class="cov8" title="1">{
                 return
         }</span>
         <span class="cov8" title="1">err = s.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
@@ -395,11 +398,11 @@ func (s *versionStore) Update(ctx context.Context, id string, v Version) (err er
 
 func (s *versionStore) UpdateMulti(ctx context.Context, ids []string, vs []Version) (err error) <span class="cov8" title="1">{
         count := len(ids)
-        if count != len(vs) </span><span class="cov0" title="0">{
+        if count != len(vs) </span><span class="cov8" title="1">{
                 err = LenIdsNotEqualToLenVs
                 return
         }</span>
-        <span class="cov8" title="1">if count == 0 </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if count == 0 </span><span class="cov8" title="1">{
                 return
         }</span>
         <span class="cov8" title="1">err = s.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
@@ -425,7 +428,7 @@ func (s *versionStore) Delete(ctx context.Context, id string) error <span class=
 }</span>
 
 func (s *versionStore) DeleteMulti(ctx context.Context, ids []string) error <span class="cov8" title="1">{
-        if len(ids) == 0 </span><span class="cov0" title="0">{
+        if len(ids) == 0 </span><span class="cov8" title="1">{
                 return nil
         }</span>
         <span class="cov8" title="1">return s.runInTransaction(ctx, func(ctx context.Context) error </span><span class="cov8" title="1">{
