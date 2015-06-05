@@ -205,13 +205,10 @@ type fooFileStore struct {
 	inner VersionStore
 }
 
-
-
 func (ffs *fooFileStore) Create() (id string, f *foo, err error) {
-	ids, fs, err := ffs.CreateMulti(1)
-	if err == nil {
-		id = ids[0]
-		f = fs[0]
+	id, v, err := ffs.inner.Create(nil)
+	if v != nil {
+		f = v.(*foo)
 	}
 	return
 }
@@ -229,9 +226,9 @@ func (ffs *fooFileStore) CreateMulti(count uint) (ids []string, fs []*foo, err e
 }
 
 func (ffs *fooFileStore) Read(id string) (f *foo, err error) {
-	fs, err := ffs.ReadMulti([]string{id})
-	if err == nil {
-		f = fs[0]
+	v, err := ffs.inner.Read(nil, id)
+	if v != nil {
+		f = v.(*foo)
 	}
 	return
 }
@@ -249,7 +246,7 @@ func (ffs *fooFileStore) ReadMulti(ids []string) (fs []*foo, err error) {
 }
 
 func (ffs *fooFileStore) Update(id string, f *foo) (err error) {
-	return ffs.UpdateMulti([]string{id}, []*foo{f})
+	return ffs.inner.Update(nil, id, f)
 }
 
 func (ffs *fooFileStore) UpdateMulti(ids []string, fs []*foo) (err error) {
@@ -265,7 +262,7 @@ func (ffs *fooFileStore) UpdateMulti(ids []string, fs []*foo) (err error) {
 }
 
 func (ffs *fooFileStore) Delete(id string) (err error) {
-	return ffs.DeleteMulti([]string{id})
+	return ffs.inner.Delete(nil, id)
 }
 
 func (ffs *fooFileStore) DeleteMulti(ids []string) (err error) {
