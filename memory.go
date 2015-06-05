@@ -1,8 +1,16 @@
 package sus
 
 import(
-	`golang.org/x/net/context`
+	`encoding/json`
 )
+
+func jsonMarshaler(v Version)([]byte, error){
+	return json.Marshal(v)
+}
+
+func jsonUnmarshaler(d []byte, v Version) error{
+	return json.Unmarshal(d, v)
+}
 
 // Creates and configures a store that stores entities by converting them to and from json []byte data and keeps them in the local system memory.
 func NewJsonMemoryStore(idf IdFactory, vf VersionFactory) Store {
@@ -13,7 +21,7 @@ func NewJsonMemoryStore(idf IdFactory, vf VersionFactory) Store {
 func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) Store {
 	store := map[string][]byte{}
 
-	get := func(ctx context.Context, id string) ([]byte, error) {
+	get := func(id string) ([]byte, error) {
 		var err error
 		d, exists := store[id]
 		if !exists {
@@ -22,12 +30,12 @@ func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactor
 		return d, err
 	}
 
-	put := func(ctx context.Context, id string, d []byte) error {
+	put := func(id string, d []byte) error {
 		store[id] = d
 		return nil
 	}
 
-	del := func(ctx context.Context, id string) error {
+	del := func(id string) error {
 		delete(store, id)
 		return nil
 	}

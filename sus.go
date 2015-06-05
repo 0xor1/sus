@@ -7,16 +7,11 @@ package sus
 
 import(
 	`errors`
-	`encoding/json`
-	`golang.org/x/net/context`
 )
 
 var(
-	// Returned by Read calls when the entity does not exist.
 	EntityDoesNotExist = errors.New(`entity does not exist`)
-	// Returned by Update calls when the entity has not been updated sequentially.
 	NonsequentialUpdate = errors.New(`nonsequential update`)
-	// Returned by UpdateMulti when the number of id's is not equal to the number of entities provided.
 	LenIdsNotEqualToLenVs = errors.New(`len(ids) not equal to len(vs)`)
 )
 
@@ -44,23 +39,23 @@ func (vi *version) incrementVersion() {
 
 // The core sus interface.
 type Store interface{
-	Create(ctx context.Context) (id string, v Version, err error)
-	CreateMulti(ctx context.Context, count uint) (ids []string, vs []Version, err error)
-	Read(ctx context.Context, id string) (v Version, err error)
-	ReadMulti(ctx context.Context, ids []string) (vs []Version, err error)
-	Update(ctx context.Context, id string, v Version) error
-	UpdateMulti(ctx context.Context, ids []string, vs []Version) error
-	Delete(ctx context.Context, id string) error
-	DeleteMulti(ctx context.Context, ids []string) error
+	Create() (id string, v Version, err error)
+	CreateMulti(count uint) (ids []string, vs []Version, err error)
+	Read(id string) (v Version, err error)
+	ReadMulti(ids []string) (vs []Version, err error)
+	Update(id string, v Version) error
+	UpdateMulti(ids []string, vs []Version) error
+	Delete(id string) error
+	DeleteMulti(ids []string) error
 }
 
 type IdFactory func() string
 type VersionFactory func() Version
-type RunInTransaction func(ctx context.Context, tran Transaction) error
-type Transaction func(ctx context.Context) error
-type GetMulti func(ctx context.Context, ids []string) ([]Version, error)
-type PutMulti func(ctx context.Context, ids []string, vs []Version) error
-type DeleteMulti func(ctx context.Context, ids []string) error
+type RunInTransaction func(tran Transaction) error
+type Transaction func() error
+type GetMulti func(ids []string) ([]Version, error)
+type PutMulti func(ids []string, vs []Version) error
+type DeleteMulti func(ids []string) error
 
 // Create and configure a core store.
 func NewStore(gm GetMulti, pm PutMulti, dm DeleteMulti, idf IdFactory, vf VersionFactory, rit RunInTransaction) Store {
@@ -77,8 +72,8 @@ type store struct{
 }
 
 // Creates a new versioned entity.
-func (s *store) Create(ctx context.Context) (id string, v Version, err error) {
-	ids, vs, err := s.CreateMulti(ctx, 1)
+func (s *store) Create() (id string, v Version, err error) {
+	ids, vs, err := s.CreateMulti(1)
 	if len(ids) == 1 && len(vs) == 1 {
 		id = ids[0]
 		v = vs[0]
@@ -87,26 +82,26 @@ func (s *store) Create(ctx context.Context) (id string, v Version, err error) {
 }
 
 // Creates a set of new versioned entities.
-func (s *store) CreateMulti(ctx context.Context, count uint) (ids []string, vs []Version, err error) {
+func (s *store) CreateMulti(count uint) (ids []string, vs []Version, err error) {
 	if count == 0 {
 		return
 	}
 	ucount := int(count)
-	err = s.runInTransaction(ctx, func(ctx context.Context) error {
+	err = s.runInTransaction(func() error {
 		ids = make([]string, count, count)
 		vs = make([]Version, count, count)
 		for i := 0; i < ucount; i++ {
 			ids[i] = s.idFactory()
 			vs[i] = s.versionFactory()
 		}
-		return s.putMulti(ctx, ids, vs)
+		return s.putMulti(ids, vs)
 	})
 	return
 }
 
 // Fetches the versioned entity with id.
-func (s *store) Read(ctx context.Context, id string) (v Version, err error) {
-	vs, err := s.ReadMulti(ctx, []string{id})
+func (s *store) Read(id string) (v Version, err error) {
+	vs, err := s.ReadMulti([]string{id})
 	if len(vs) == 1 {
 		v = vs[0]
 	}
@@ -114,25 +109,25 @@ func (s *store) Read(ctx context.Context, id string) (v Version, err error) {
 }
 
 // Fetches the versioned entities with id's.
-func (s *store) ReadMulti(ctx context.Context, ids []string) (vs []Version, err error) {
+func (s *store) ReadMulti(ids []string) (vs []Version, err error) {
 	if len(ids) == 0 {
 		return
 	}
-	err = s.runInTransaction(ctx, func(ctx context.Context) error {
-		vs, err = s.getMulti(ctx, ids)
+	err = s.runInTransaction(func() error {
+		vs, err = s.getMulti(ids)
 		return err
 	})
 	return
 }
 
 // Updates the versioned entity with id.
-func (s *store) Update(ctx context.Context, id string, v Version) (err error) {
-	err = s.UpdateMulti(ctx, []string{id}, []Version{v})
+func (s *store) Update(id string, v Version) (err error) {
+	err = s.UpdateMulti([]string{id}, []Version{v})
 	return
 }
 
 // Updates the versioned entities with id's.
-func (s *store) UpdateMulti(ctx context.Context, ids []string, vs []Version) (err error) {
+func (s *store) UpdateMulti(ids []string, vs []Version) (err error) {
 	count := len(ids)
 	if count != len(vs) {
 		err = LenIdsNotEqualToLenVs
@@ -141,8 +136,8 @@ func (s *store) UpdateMulti(ctx context.Context, ids []string, vs []Version) (er
 	if count == 0 {
 		return
 	}
-	err = s.runInTransaction(ctx, func(ctx context.Context) error {
-		oldVs, err := s.getMulti(ctx, ids)
+	err = s.runInTransaction(func() error {
+		oldVs, err := s.getMulti(ids)
 		if err == nil {
 			for i := 0; i < count; i++ {
 				if oldVs[i].getVersion() != vs[i].getVersion() {
@@ -152,7 +147,7 @@ func (s *store) UpdateMulti(ctx context.Context, ids []string, vs []Version) (er
 			for i := 0; i < count; i++ {
 				vs[i].incrementVersion()
 			}
-			return s.putMulti(ctx, ids, vs)
+			return s.putMulti(ids, vs)
 		}
 		return err
 	})
@@ -160,24 +155,16 @@ func (s *store) UpdateMulti(ctx context.Context, ids []string, vs []Version) (er
 }
 
 // Deletes the versioned entity with id.
-func (s *store) Delete(ctx context.Context, id string) error {
-	return s.DeleteMulti(ctx, []string{id})
+func (s *store) Delete(id string) error {
+	return s.DeleteMulti([]string{id})
 }
 
 // Deletes the versioned entities with id's.
-func (s *store) DeleteMulti(ctx context.Context, ids []string) error {
+func (s *store) DeleteMulti(ids []string) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	return s.runInTransaction(ctx, func(ctx context.Context) error {
-		return s.deleteMulti(ctx, ids)
+	return s.runInTransaction(func() error {
+		return s.deleteMulti(ids)
 	})
-}
-
-func jsonMarshaler(v Version)([]byte, error){
-	return json.Marshal(v)
-}
-
-func jsonUnmarshaler(d []byte, v Version) error{
-	return json.Unmarshal(d, v)
 }

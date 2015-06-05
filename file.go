@@ -3,7 +3,6 @@ package sus
 import(
 	`os`
 	`io/ioutil`
-	`golang.org/x/net/context`
 )
 
 // Creates and configures a store that stores entities by converting them to and from json []byte data and keeps them in the local file system.
@@ -21,7 +20,7 @@ func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, 
 			return storeDir + `/` + id + `.` + fileExt
 		}
 
-		get := func(ctx context.Context, id string) ([]byte, error) {
+		get := func(id string) ([]byte, error) {
 			fn := getFileName(id)
 			if _, err := os.Stat(fn); err != nil {
 				if os.IsNotExist(err) {
@@ -32,11 +31,11 @@ func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, 
 			return ioutil.ReadFile(fn)
 		}
 
-		put := func(ctx context.Context, id string, d []byte) error {
+		put := func(id string, d []byte) error {
 			return ioutil.WriteFile(getFileName(id), d, os.ModeAppend)
 		}
 
-		del := func(ctx context.Context, id string) error {
+		del := func(id string) error {
 			return os.Remove(getFileName(id))
 		}
 

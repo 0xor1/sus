@@ -206,7 +206,7 @@ type fooFileStore struct {
 }
 
 func (ffs *fooFileStore) Create() (id string, f *foo, err error) {
-	id, v, err := ffs.inner.Create(nil)
+	id, v, err := ffs.inner.Create()
 	if v != nil {
 		f = v.(*foo)
 	}
@@ -214,7 +214,7 @@ func (ffs *fooFileStore) Create() (id string, f *foo, err error) {
 }
 
 func (ffs *fooFileStore) CreateMulti(count uint) (ids []string, fs []*foo, err error) {
-	ids, vs, err := ffs.inner.CreateMulti(nil, count)
+	ids, vs, err := ffs.inner.CreateMulti(count)
 	if vs != nil {
 		count := len(vs)
 		fs = make([]*foo, count, count)
@@ -226,7 +226,7 @@ func (ffs *fooFileStore) CreateMulti(count uint) (ids []string, fs []*foo, err e
 }
 
 func (ffs *fooFileStore) Read(id string) (f *foo, err error) {
-	v, err := ffs.inner.Read(nil, id)
+	v, err := ffs.inner.Read(id)
 	if v != nil {
 		f = v.(*foo)
 	}
@@ -234,7 +234,7 @@ func (ffs *fooFileStore) Read(id string) (f *foo, err error) {
 }
 
 func (ffs *fooFileStore) ReadMulti(ids []string) (fs []*foo, err error) {
-	vs, err := ffs.inner.ReadMulti(nil, ids)
+	vs, err := ffs.inner.ReadMulti(ids)
 	if vs != nil {
 		count := len(vs)
 		fs = make([]*foo, count, count)
@@ -246,7 +246,7 @@ func (ffs *fooFileStore) ReadMulti(ids []string) (fs []*foo, err error) {
 }
 
 func (ffs *fooFileStore) Update(id string, f *foo) (err error) {
-	return ffs.inner.Update(nil, id, f)
+	return ffs.inner.Update(id, f)
 }
 
 func (ffs *fooFileStore) UpdateMulti(ids []string, fs []*foo) (err error) {
@@ -256,15 +256,15 @@ func (ffs *fooFileStore) UpdateMulti(ids []string, fs []*foo) (err error) {
 		for i := 0; i < count; i++ {
 			vs[i] = Version(fs[i])
 		}
-		err = ffs.inner.UpdateMulti(nil, ids, vs)
+		err = ffs.inner.UpdateMulti(ids, vs)
 	}
 	return
 }
 
 func (ffs *fooFileStore) Delete(id string) (err error) {
-	return ffs.inner.Delete(nil, id)
+	return ffs.inner.Delete(id)
 }
 
 func (ffs *fooFileStore) DeleteMulti(ids []string) (err error) {
-	return ffs.inner.DeleteMulti(nil, ids)
+	return ffs.inner.DeleteMulti(ids)
 }
