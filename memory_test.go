@@ -2,12 +2,13 @@ package sus
 
 import(
 	`fmt`
+	`errors`
 	`testing`
 	`github.com/stretchr/testify/assert`
 )
 
 func Test_MemoryStore_Create(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 
 	id1, f1, err1 := fms.Create()
 
@@ -27,7 +28,7 @@ func Test_MemoryStore_Create(t *testing.T){
 }
 
 func Test_MemoryStore_CreateMulti_with_zero_count(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 
 	ids, fs, err := fms.CreateMulti(0)
 
@@ -37,7 +38,7 @@ func Test_MemoryStore_CreateMulti_with_zero_count(t *testing.T){
 }
 
 func Test_MemoryStore_Read_success(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 
 	id, f1, err1 := fms.Create()
 
@@ -54,7 +55,7 @@ func Test_MemoryStore_Read_success(t *testing.T){
 }
 
 func Test_MemoryStore_ReadMulti_with_zero_count(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 
 	f, err := fms.ReadMulti([]string{})
 
@@ -63,7 +64,7 @@ func Test_MemoryStore_ReadMulti_with_zero_count(t *testing.T){
 }
 
 func Test_MemoryStore_Read_EntityDoesNotExist_failure(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 
 	f, err := fms.Read(``)
 
@@ -72,7 +73,7 @@ func Test_MemoryStore_Read_EntityDoesNotExist_failure(t *testing.T){
 }
 
 func Test_MemoryStore_Update_success(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 	id, f, err := fms.Create()
 
 	err = fms.Update(id, f)
@@ -82,7 +83,7 @@ func Test_MemoryStore_Update_success(t *testing.T){
 }
 
 func Test_MemoryStore_Update_EntityDoesNotExist_failure(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 	_, f, _ := fms.Create()
 
 	err := fms.Update(``, f)
@@ -91,7 +92,7 @@ func Test_MemoryStore_Update_EntityDoesNotExist_failure(t *testing.T){
 }
 
 func Test_MemoryStore_Update_NonsequentialUpdate_failure(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 	id, f, _ := fms.Create()
 	f.incrementVersion()
 
@@ -101,7 +102,7 @@ func Test_MemoryStore_Update_NonsequentialUpdate_failure(t *testing.T){
 }
 
 func Test_MemoryStore_UpdateMulti_LenIdsNotEqualToLenVs_failure(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 
 	err := fms.UpdateMulti([]string{``}, []*foo{})
 
@@ -109,7 +110,7 @@ func Test_MemoryStore_UpdateMulti_LenIdsNotEqualToLenVs_failure(t *testing.T){
 }
 
 func Test_MemoryStore_UpdateMulti_with_zero_count(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 
 	err := fms.UpdateMulti([]string{}, []*foo{})
 
@@ -117,7 +118,7 @@ func Test_MemoryStore_UpdateMulti_with_zero_count(t *testing.T){
 }
 
 func Test_MemoryStore_Delete_success(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 	id, f, err := fms.Create()
 
 	err = fms.Delete(id)
@@ -131,7 +132,7 @@ func Test_MemoryStore_Delete_success(t *testing.T){
 }
 
 func Test_MemoryStore_DeleteMulti_with_zero_ids(t *testing.T){
-	fms := newFooMemoryStore()
+	fms := newFooMemoryStore(nil, nil)
 	ids := []string{}
 
 	err := fms.DeleteMulti(ids)
@@ -139,22 +140,51 @@ func Test_MemoryStore_DeleteMulti_with_zero_ids(t *testing.T){
 	assert.Nil(t, err, `err should be nil`)
 }
 
+func Test_MemoryStore_Read_with_marshaler_error(t *testing.T){
+	fms := newFooMemoryStore(errorMarshaler, nil)
+	_, _, err := fms.Create()
+
+	assert.Equal(t, marshalerErr, err, `err should be marshalerErr`)
+}
+
+func Test_MemoryStore_Read_with_unmarshaler_error(t *testing.T){
+	marshaler := func(src Version)([]byte,error){return []byte{}, nil}
+	fms := newFooMemoryStore(marshaler, errorUnmarshaler)
+	id, _, err := fms.Create()
+
+	_, err = fms.Read(id)
+
+	assert.Equal(t, unmarshalerErr, err, `err should be unmarshalerErr`)
+}
+
+var(
+	marshalerErr = errors.New(`marshaler error`)
+	errorMarshaler = func(src Version)([]byte,error){return nil, marshalerErr}
+	unmarshalerErr 	= errors.New(`unmarshaler error`)
+	errorUnmarshaler = func(data []byte, dst Version)error{return unmarshalerErr}
+)
+
 type foo struct{
 	Version	`json:"version"`
 }
 
-func newFooMemoryStore() *fooMemoryStore {
+func newFooMemoryStore(m Marshaler, un Unmarshaler) *fooMemoryStore {
 	idSrc := 0
+	var inner VersionStore
+	idf := func() string {
+		idSrc++
+		return fmt.Sprintf(`%d`, idSrc)
+	}
+	vf := func() Version {
+		return &foo{NewVersion()}
+	}
+	if(m == nil) {
+		inner = NewJsonMemoryStore(idf, vf)
+	} else{
+		inner = NewMemoryStore(m, un, idf, vf)
+	}
 	return &fooMemoryStore{
-		inner: NewJsonMemoryStore(
-			func() string {
-				idSrc++
-				return fmt.Sprintf(`%d`, idSrc)
-			},
-			func() Version {
-				return &foo{NewVersion()}
-			},
-		),
+		inner: inner,
 	}
 }
 

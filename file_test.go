@@ -3,7 +3,6 @@ package sus
 import(
 	`os`
 	`fmt`
-	`errors`
 	`testing`
 	`github.com/stretchr/testify/assert`
 )
@@ -160,9 +159,7 @@ func Test_FileStore_DeleteMulti_with_zero_ids(t *testing.T){
 }
 
 func Test_FileStore_Read_with_marshaler_error(t *testing.T){
-	marshalerErr := errors.New(`marshaler error`)
-	marshaler := func(src Version)([]byte,error){return nil, marshalerErr}
-	ffs, err := newFooFileStore(_TEST_DIR, ``, marshaler, nil)
+	ffs, err := newFooFileStore(_TEST_DIR, ``, errorMarshaler, nil)
 	_, _, err = ffs.Create()
 
 	assert.Equal(t, marshalerErr, err, `err should be marshalerErr`)
@@ -170,10 +167,8 @@ func Test_FileStore_Read_with_marshaler_error(t *testing.T){
 }
 
 func Test_FileStore_Read_with_unmarshaler_error(t *testing.T){
-	unmarshalerErr := errors.New(`unmarshaler error`)
 	marshaler := func(src Version)([]byte,error){return []byte{}, nil}
-	unmarshaler := func(data []byte, dst Version)error{return unmarshalerErr}
-	ffs, err := newFooFileStore(_TEST_DIR, ``, marshaler, unmarshaler)
+	ffs, err := newFooFileStore(_TEST_DIR, ``, marshaler, errorUnmarshaler)
 	id, _, err := ffs.Create()
 
 	_, err = ffs.Read(id)
