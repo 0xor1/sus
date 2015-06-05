@@ -36,13 +36,16 @@ func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un 
 		return vs, err
 	}
 
-	putMulti := func(ctx context.Context, ids []string, vs []Version) (err error) {
+	putMulti := func(ctx context.Context, ids []string, vs []Version) error {
+		var err error
+		var d []byte
 		count := len(ids)
 		for i := 0; i < count; i++{
-			d, err := m(vs[i])
-			if err == nil {
-				err = bp(ctx, ids[i], d)
+			d, err = m(vs[i])
+			if err != nil {
+				break
 			}
+			err = bp(ctx, ids[i], d)
 		}
 		return err
 	}
