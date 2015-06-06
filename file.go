@@ -14,33 +14,37 @@ func NewJsonFileStore(storeDir string, idf IdFactory, vf VersionFactory) (Store,
 func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) (Store, error) {
 	err := os.MkdirAll(storeDir, os.ModeDir)
 
-	if err == nil {
-
-		getFileName := func(id string) string {
-			return storeDir + `/` + id + `.` + fileExt
-		}
-
-		get := func(id string) ([]byte, error) {
-			fn := getFileName(id)
-			if _, err := os.Stat(fn); err != nil {
-				if os.IsNotExist(err) {
-					err = EntityDoesNotExist
-				}
-				return nil, err
-			}
-			return ioutil.ReadFile(fn)
-		}
-
-		put := func(id string, d []byte) error {
-			return ioutil.WriteFile(getFileName(id), d, os.ModeAppend)
-		}
-
-		del := func(id string) error {
-			return os.Remove(getFileName(id))
-		}
-
-		return NewMutexByteStore(get, put, del, m, un, idf, vf), nil
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, err
+	getFileName := func(id string) string {
+		return storeDir + `/` + id + `.` + fileExt
+	}
+
+	get := func(id string) ([]byte, error) {
+		fn := getFileName(id)
+		if _, err := os.Stat(fn); err != nil {
+			if os.IsNotExist(err) {
+				err = localEntityDoesNotExistError{id}
+			}
+			return nil, err
+		}
+		return ioutil.ReadFile(fn)
+	}
+
+	put := func(id string, d []byte) error {
+		return ioutil.WriteFile(getFileName(id), d, os.ModeAppend)
+	}
+
+	del := func(id string) error {
+		return os.Remove(getFileName(id))
+	}
+
+	isNonExtantError := func(err error) bool {
+		_, ok := err.(localEntityDoesNotExistError)
+		return ok
+	}
+
+	return NewMutexByteStore(get, put, del, m, un, idf, vf, isNonExtantError), nil
 }

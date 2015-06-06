@@ -76,13 +76,13 @@ func Test_FileStore_ReadMulti_with_zero_count(t *testing.T){
 	assert.Nil(t, err, `err1 should be nil`)
 }
 
-func Test_FileStore_Read_EntityDoesNotExist_failure(t *testing.T){
+func Test_FileStore_Read_NonExtant_failure(t *testing.T){
 	ffs, _ := newFooFileStore(_TEST_DIR, ``, nil, nil)
 
-	f, err := ffs.Read(``)
+	f, err := ffs.Read(`a_fake_id`)
 
 	assert.Nil(t, f, `f should be nil`)
-	assert.Equal(t, EntityDoesNotExist, err, `err should be EntityDoesNotExist`)
+	assert.Equal(t, `Non extant error, inner error message: entity with id "a_fake_id" does not exist`, err.Error(), `err should contain expected msg`)
 	os.RemoveAll(_TEST_DIR)
 }
 
@@ -97,13 +97,13 @@ func Test_FileStore_Update_success(t *testing.T){
 	os.RemoveAll(_TEST_DIR)
 }
 
-func Test_FileStore_Update_EntityDoesNotExist_failure(t *testing.T){
+func Test_FileStore_Update_NonExtant_failure(t *testing.T){
 	ffs, _ := newFooFileStore(_TEST_DIR, ``, nil, nil)
 	_, f, _ := ffs.Create()
 
-	err := ffs.Update(``, f)
+	err := ffs.Update(`a_fake_id`, f)
 
-	assert.Equal(t, EntityDoesNotExist, err, `err should be EntityDoesNotExist`)
+	assert.Equal(t, `Non extant error, inner error message: entity with id "a_fake_id" does not exist`, err.Error(), `err should contain expected msg`)
 	os.RemoveAll(_TEST_DIR)
 }
 
@@ -114,16 +114,16 @@ func Test_FileStore_Update_NonsequentialUpdate_failure(t *testing.T){
 
 	err := ffs.Update(id, f)
 
-	assert.Equal(t, NonsequentialUpdate, err, `err should be NonsequentialUpdate`)
+	assert.Equal(t, `nonsequential update for entity with id "`+id+`"`, err.Error(), `err should contain expected msg`)
 	os.RemoveAll(_TEST_DIR)
 }
 
-func Test_FileStore_UpdateMulti_LenIdsNotEqualToLenVs_failure(t *testing.T){
+func Test_FileStore_UpdateMulti_IdCountNotEqualToEntityCount_failure(t *testing.T){
 	ffs, err := newFooFileStore(_TEST_DIR, ``, nil, nil)
 
 	err = ffs.UpdateMulti([]string{``}, []*foo{})
 
-	assert.Equal(t, LenIdsNotEqualToLenVs, err, `err should be LenIdsNotEqualToLenVs`)
+	assert.Equal(t, `id count (1) not equal to entity count (0)`, err.Error(), `err should contain expected msg`)
 }
 
 func Test_FileStore_UpdateMulti_with_zero_count(t *testing.T){
@@ -145,7 +145,7 @@ func Test_FileStore_Delete_success(t *testing.T){
 	f, err = ffs.Read(id)
 
 	assert.Nil(t, f, `f should be nil`)
-	assert.IsType(t, EntityDoesNotExist, err, `err should be EntityDoesNotExist`)
+	assert.Equal(t, `Non extant error, inner error message: entity with id "`+id+`" does not exist`, err.Error(), `err should contain expected msg`)
 	os.RemoveAll(_TEST_DIR)
 }
 

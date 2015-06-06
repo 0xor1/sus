@@ -44,9 +44,13 @@ func NewGaeStore(ctx context.Context, kind string, idf IdFactory, vf VersionFact
 		return nds.DeleteMulti(ctx, ks)
 	}
 
+	isNonExtantError := func(err error) bool {
+		return err == datastore.ErrNoSuchEntity
+	}
+
 	rit := func(tran Transaction) error {
 		return nds.RunInTransaction(ctx, func(ctx context.Context)error{return tran()}, &datastore.TransactionOptions{XG:true})
 	}
 
-	return NewStore(getMulti, putMulti, delMulti, idf, vf, rit)
+	return NewStore(getMulti, putMulti, delMulti, idf, vf, isNonExtantError,rit)
 }

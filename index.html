@@ -62,7 +62,7 @@
 				
 				<option value="file3">github.com\0xor1\sus\mutex_byte.go (100.0%)</option>
 				
-				<option value="file4">github.com\0xor1\sus\sus.go (100.0%)</option>
+				<option value="file4">github.com\0xor1\sus\sus.go (97.1%)</option>
 				
 				</select>
 			</div>
@@ -92,35 +92,39 @@ func NewJsonFileStore(storeDir string, idf IdFactory, vf VersionFactory) (Store,
 func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) (Store, error) <span class="cov8" title="1">{
         err := os.MkdirAll(storeDir, os.ModeDir)
 
-        if err == nil </span><span class="cov8" title="1">{
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
 
-                getFileName := func(id string) string </span><span class="cov8" title="1">{
-                        return storeDir + `/` + id + `.` + fileExt
-                }</span>
+        <span class="cov8" title="1">getFileName := func(id string) string </span><span class="cov8" title="1">{
+                return storeDir + `/` + id + `.` + fileExt
+        }</span>
 
-                <span class="cov8" title="1">get := func(id string) ([]byte, error) </span><span class="cov8" title="1">{
-                        fn := getFileName(id)
-                        if _, err := os.Stat(fn); err != nil </span><span class="cov8" title="1">{
-                                if os.IsNotExist(err) </span><span class="cov8" title="1">{
-                                        err = EntityDoesNotExist
-                                }</span>
-                                <span class="cov8" title="1">return nil, err</span>
-                        }
-                        <span class="cov8" title="1">return ioutil.ReadFile(fn)</span>
+        <span class="cov8" title="1">get := func(id string) ([]byte, error) </span><span class="cov8" title="1">{
+                fn := getFileName(id)
+                if _, err := os.Stat(fn); err != nil </span><span class="cov8" title="1">{
+                        if os.IsNotExist(err) </span><span class="cov8" title="1">{
+                                err = localEntityDoesNotExistError{id}
+                        }</span>
+                        <span class="cov8" title="1">return nil, err</span>
                 }
-
-                <span class="cov8" title="1">put := func(id string, d []byte) error </span><span class="cov8" title="1">{
-                        return ioutil.WriteFile(getFileName(id), d, os.ModeAppend)
-                }</span>
-
-                <span class="cov8" title="1">del := func(id string) error </span><span class="cov8" title="1">{
-                        return os.Remove(getFileName(id))
-                }</span>
-
-                <span class="cov8" title="1">return NewMutexByteStore(get, put, del, m, un, idf, vf), nil</span>
+                <span class="cov8" title="1">return ioutil.ReadFile(fn)</span>
         }
 
-        <span class="cov8" title="1">return nil, err</span>
+        <span class="cov8" title="1">put := func(id string, d []byte) error </span><span class="cov8" title="1">{
+                return ioutil.WriteFile(getFileName(id), d, os.ModeAppend)
+        }</span>
+
+        <span class="cov8" title="1">del := func(id string) error </span><span class="cov8" title="1">{
+                return os.Remove(getFileName(id))
+        }</span>
+
+        <span class="cov8" title="1">isNonExtantError := func(err error) bool </span><span class="cov8" title="1">{
+                _, ok := err.(localEntityDoesNotExistError)
+                return ok
+        }</span>
+
+        <span class="cov8" title="1">return NewMutexByteStore(get, put, del, m, un, idf, vf, isNonExtantError), nil</span>
 }</pre>
 		
 		<pre class="file" id="file1" style="display: none">package sus
@@ -169,11 +173,15 @@ func NewGaeStore(ctx context.Context, kind string, idf IdFactory, vf VersionFact
                 <span class="cov0" title="0">return nds.DeleteMulti(ctx, ks)</span>
         }
 
+        <span class="cov0" title="0">isNonExtantError := func(err error) bool </span><span class="cov0" title="0">{
+                return err == datastore.ErrNoSuchEntity
+        }</span>
+
         <span class="cov0" title="0">rit := func(tran Transaction) error </span><span class="cov0" title="0">{
                 return nds.RunInTransaction(ctx, func(ctx context.Context)error</span><span class="cov0" title="0">{return tran()}</span>, &amp;datastore.TransactionOptions{XG:true})
         }
 
-        <span class="cov0" title="0">return NewStore(getMulti, putMulti, delMulti, idf, vf, rit)</span>
+        <span class="cov0" title="0">return NewStore(getMulti, putMulti, delMulti, idf, vf, isNonExtantError,rit)</span>
 }</pre>
 		
 		<pre class="file" id="file2" style="display: none">package sus
@@ -203,7 +211,7 @@ func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactor
                 var err error
                 d, exists := store[id]
                 if !exists </span><span class="cov8" title="1">{
-                        err = EntityDoesNotExist
+                        err = localEntityDoesNotExistError{id}
                 }</span>
                 <span class="cov8" title="1">return d, err</span>
         }
@@ -218,7 +226,12 @@ func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactor
                 return nil
         }</span>
 
-        <span class="cov8" title="1">return NewMutexByteStore(get, put, del, m, un, idf, vf)</span>
+        <span class="cov8" title="1">isNonExtantError := func(err error) bool </span><span class="cov8" title="1">{
+                _, ok := err.(localEntityDoesNotExistError)
+                return ok
+        }</span>
+
+        <span class="cov8" title="1">return NewMutexByteStore(get, put, del, m, un, idf, vf, isNonExtantError)</span>
 }</pre>
 		
 		<pre class="file" id="file3" style="display: none">package sus
@@ -234,7 +247,7 @@ type BytePutter func(id string, d []byte) error
 type Deleter func(id string) error
 
 // Creates and configures a store that stores entities by converting them to and from []byte and ensures versioning correctness with mutex locks.
-func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory) Store <span class="cov8" title="1">{
+func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactory, inee IsNonExtantError) Store <span class="cov8" title="1">{
         mtx := sync.Mutex{}
 
         getMulti := func(ids []string) ([]Version, error) </span><span class="cov8" title="1">{
@@ -290,7 +303,15 @@ func NewMutexByteStore(bg ByteGetter, bp BytePutter, d Deleter, m Marshaler, un 
                 return tran()
         }</span>
 
-        <span class="cov8" title="1">return NewStore(getMulti, putMulti, delMulti, idf, vf, rit)</span>
+        <span class="cov8" title="1">return NewStore(getMulti, putMulti, delMulti, idf, vf, inee, rit)</span>
+}
+
+type localEntityDoesNotExistError struct{
+        id string
+}
+
+func (e localEntityDoesNotExistError) Error() string<span class="cov8" title="1">{
+        return `entity with id "`+e.id+`" does not exist`
 }</pre>
 		
 		<pre class="file" id="file4" style="display: none">/*
@@ -301,19 +322,14 @@ in sus, Memory/File/AppEngine.
 package sus
 
 import(
-        `errors`
-)
-
-var(
-        EntityDoesNotExist = errors.New(`entity does not exist`)
-        NonsequentialUpdate = errors.New(`nonsequential update`)
-        LenIdsNotEqualToLenVs = errors.New(`len(ids) not equal to len(vs)`)
+        `fmt`
 )
 
 // The interface that struct entities must include as anonymous fields in order to be used with sus stores.
 type Version interface{
         getVersion() int
         incrementVersion()
+        decrementVersion()
 }
 
 // The constructor to initialise the anonymous Version fields in struct entities.
@@ -330,6 +346,10 @@ func (vi *version) getVersion() int<span class="cov8" title="1">{
 
 func (vi *version) incrementVersion() <span class="cov8" title="1">{
         *vi += 1
+}</span>
+
+func (vi *version) decrementVersion() <span class="cov0" title="0">{
+        *vi -= 1
 }</span>
 
 // The core sus interface.
@@ -351,10 +371,11 @@ type Transaction func() error
 type GetMulti func(ids []string) ([]Version, error)
 type PutMulti func(ids []string, vs []Version) error
 type DeleteMulti func(ids []string) error
+type IsNonExtantError func(error) bool
 
 // Create and configure a core store.
-func NewStore(gm GetMulti, pm PutMulti, dm DeleteMulti, idf IdFactory, vf VersionFactory, rit RunInTransaction) Store <span class="cov8" title="1">{
-        return &amp;store{gm, pm, dm, idf, vf, rit}
+func NewStore(gm GetMulti, pm PutMulti, dm DeleteMulti, idf IdFactory, vf VersionFactory, inee IsNonExtantError, rit RunInTransaction) Store <span class="cov8" title="1">{
+        return &amp;store{gm, pm, dm, idf, vf, inee, rit}
 }</span>
 
 type store struct{
@@ -363,6 +384,7 @@ type store struct{
         deleteMulti                        DeleteMulti
         idFactory                         IdFactory
         versionFactory                 VersionFactory
+        isNonExtantError        IsNonExtantError
         runInTransaction        RunInTransaction
 }
 
@@ -381,11 +403,11 @@ func (s *store) CreateMulti(count uint) (ids []string, vs []Version, err error) 
         if count == 0 </span><span class="cov8" title="1">{
                 return
         }</span>
-        <span class="cov8" title="1">ucount := int(count)
+        <span class="cov8" title="1">icount := int(count)
         err = s.runInTransaction(func() error </span><span class="cov8" title="1">{
                 ids = make([]string, count, count)
                 vs = make([]Version, count, count)
-                for i := 0; i &lt; ucount; i++ </span><span class="cov8" title="1">{
+                for i := 0; i &lt; icount; i++ </span><span class="cov8" title="1">{
                         ids[i] = s.idFactory()
                         vs[i] = s.versionFactory()
                 }</span>
@@ -410,8 +432,13 @@ func (s *store) ReadMulti(ids []string) (vs []Version, err error) <span class="c
         }</span>
         <span class="cov8" title="1">err = s.runInTransaction(func() error </span><span class="cov8" title="1">{
                 vs, err = s.getMulti(ids)
-                return err
-        }</span>)
+                if err != nil </span><span class="cov8" title="1">{
+                        if s.isNonExtantError(err) </span><span class="cov8" title="1">{
+                                err = &amp;nonExtantError{err}
+                        }</span>
+                }
+                <span class="cov8" title="1">return err</span>
+        })
         <span class="cov8" title="1">return</span>
 }
 
@@ -425,7 +452,7 @@ func (s *store) Update(id string, v Version) (err error) <span class="cov8" titl
 func (s *store) UpdateMulti(ids []string, vs []Version) (err error) <span class="cov8" title="1">{
         count := len(ids)
         if count != len(vs) </span><span class="cov8" title="1">{
-                err = LenIdsNotEqualToLenVs
+                err = &amp;idCountNotEqualToEntityCountError{count, len(vs)}
                 return
         }</span>
         <span class="cov8" title="1">if count == 0 </span><span class="cov8" title="1">{
@@ -433,16 +460,27 @@ func (s *store) UpdateMulti(ids []string, vs []Version) (err error) <span class=
         }</span>
         <span class="cov8" title="1">err = s.runInTransaction(func() error </span><span class="cov8" title="1">{
                 oldVs, err := s.getMulti(ids)
-                if err == nil </span><span class="cov8" title="1">{
+                if err != nil </span><span class="cov8" title="1">{
+                        if s.isNonExtantError(err) </span><span class="cov8" title="1">{
+                                err = &amp;nonExtantError{err}
+                        }</span>
+                }<span class="cov8" title="1"> else {
+                        reverseI := 0
                         for i := 0; i &lt; count; i++ </span><span class="cov8" title="1">{
                                 if oldVs[i].getVersion() != vs[i].getVersion() </span><span class="cov8" title="1">{
-                                        return NonsequentialUpdate
-                                }</span>
+                                        err = &amp;nonsequentialUpdateError{ids[i]}
+                                        reverseI = i
+                                        break</span>;
+                                }
+                                <span class="cov8" title="1">vs[i].incrementVersion()</span>
                         }
-                        <span class="cov8" title="1">for i := 0; i &lt; count; i++ </span><span class="cov8" title="1">{
-                                vs[i].incrementVersion()
+                        <span class="cov8" title="1">if err != nil </span><span class="cov8" title="1">{
+                                for i := 0; i &lt; reverseI; i++ </span><span class="cov0" title="0">{
+                                        vs[i].decrementVersion()
+                                }</span>
+                        }<span class="cov8" title="1"> else {
+                                err = s.putMulti(ids, vs)
                         }</span>
-                        <span class="cov8" title="1">return s.putMulti(ids, vs)</span>
                 }
                 <span class="cov8" title="1">return err</span>
         })
@@ -462,7 +500,26 @@ func (s *store) DeleteMulti(ids []string) error <span class="cov8" title="1">{
         <span class="cov8" title="1">return s.runInTransaction(func() error </span><span class="cov8" title="1">{
                 return s.deleteMulti(ids)
         }</span>)
-}</pre>
+}
+
+type nonExtantError struct{
+        inner error
+}
+
+func (e *nonExtantError) Error() string <span class="cov8" title="1">{ return `Non extant error, inner error message: ` + e.inner.Error()}</span>
+
+type nonsequentialUpdateError struct{
+        id string
+}
+
+func (e *nonsequentialUpdateError) Error() string <span class="cov8" title="1">{ return `nonsequential update for entity with id "`+e.id+`"` }</span>
+
+type idCountNotEqualToEntityCountError struct{
+        idCount int
+        eCount        int
+}
+
+func (e *idCountNotEqualToEntityCountError) Error() string <span class="cov8" title="1">{ return fmt.Sprintf(`id count (%d) not equal to entity count (%d)`, e.idCount, e.eCount) }</pre>
 		
 		</div>
 	</body>

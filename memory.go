@@ -25,7 +25,7 @@ func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactor
 		var err error
 		d, exists := store[id]
 		if !exists {
-			err = EntityDoesNotExist
+			err = localEntityDoesNotExistError{id}
 		}
 		return d, err
 	}
@@ -40,5 +40,10 @@ func NewMemoryStore(m Marshaler, un Unmarshaler, idf IdFactory, vf VersionFactor
 		return nil
 	}
 
-	return NewMutexByteStore(get, put, del, m, un, idf, vf)
+	isNonExtantError := func(err error) bool {
+		_, ok := err.(localEntityDoesNotExistError)
+		return ok
+	}
+
+	return NewMutexByteStore(get, put, del, m, un, idf, vf, isNonExtantError)
 }
