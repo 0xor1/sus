@@ -8,7 +8,9 @@ import(
 
 // Creates and configures a store that stores entities in Google AppEngines memcache and datastore.
 // github.com/qedus/nds is used for strongly consistent automatic caching.
-func NewGaeStore(ctx context.Context, kind string, idf IdFactory, vf VersionFactory) Store {
+func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) Store {
+	var tranCtx context.Context
+
 	getKey := func(ctx context.Context, id string) *datastore.Key {
 		return datastore.NewKey(ctx, kind, id, 0, nil)
 	}
@@ -19,9 +21,9 @@ func NewGaeStore(ctx context.Context, kind string, idf IdFactory, vf VersionFact
 		ks := make([]*datastore.Key, count, count)
 		for i := 0; i < count; i++ {
 			vs[i] = vf()
-			ks[i] = getKey(ctx, ids[i])
+			ks[i] = getKey(tranCtx, ids[i])
 		}
-		err = nds.GetMulti(ctx, ks, vs)
+		err = nds.GetMulti(tranCtx, ks, vs)
 		return
 	}
 
@@ -29,9 +31,9 @@ func NewGaeStore(ctx context.Context, kind string, idf IdFactory, vf VersionFact
 		count := len(ids)
 		ks := make([]*datastore.Key, count, count)
 		for i := 0; i < count; i++ {
-			ks[i] = getKey(ctx, ids[i])
+			ks[i] = getKey(tranCtx, ids[i])
 		}
-		_, err = nds.PutMulti(ctx, ks, vs)
+		_, err = nds.PutMulti(tranCtx, ks, vs)
 		return
 	}
 
@@ -39,9 +41,9 @@ func NewGaeStore(ctx context.Context, kind string, idf IdFactory, vf VersionFact
 		count := len(ids)
 		ks := make([]*datastore.Key, count, count)
 		for i := 0; i < count; i++ {
-			ks[i] = getKey(ctx, ids[i])
+			ks[i] = getKey(tranCtx, ids[i])
 		}
-		return nds.DeleteMulti(ctx, ks)
+		return nds.DeleteMulti(tranCtx, ks)
 	}
 
 	isNonExtantError := func(err error) bool {
@@ -49,7 +51,10 @@ func NewGaeStore(ctx context.Context, kind string, idf IdFactory, vf VersionFact
 	}
 
 	rit := func(tran Transaction) error {
-		return nds.RunInTransaction(ctx, func(ctx context.Context)error{return tran()}, &datastore.TransactionOptions{XG:true})
+		return nds.RunInTransaction(context.Background(), func(ctx context.Context)error{
+			tranCtx = ctx
+			return tran()
+		}, &datastore.TransactionOptions{XG:true})
 	}
 
 	return NewStore(getMulti, putMulti, delMulti, idf, vf, isNonExtantError,rit)
