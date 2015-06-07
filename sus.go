@@ -12,6 +12,7 @@ import(
 // The interface that struct entities must include as anonymous fields in order to be used with sus stores.
 type Version interface{
 	GetVersion() int
+	getVersion() int
 	incrementVersion()
 	decrementVersion()
 }
@@ -25,6 +26,10 @@ func NewVersion() Version {
 type version int
 
 func (vi *version) GetVersion() int{
+	return int(*vi)
+}
+
+func (vi *version) getVersion() int{
 	return int(*vi)
 }
 
@@ -151,7 +156,7 @@ func (s *store) UpdateMulti(ids []string, vs []Version) (err error) {
 		} else {
 			reverseI := 0
 			for i := 0; i < count; i++ {
-				if oldVs[i].GetVersion() != vs[i].GetVersion() {
+				if oldVs[i].getVersion() != vs[i].getVersion() {
 					err = &nonsequentialUpdateError{ids[i]}
 					reverseI = i
 					break;
