@@ -93,12 +93,15 @@ func Test_MemoryStore_Update_NonExtant_failure(t *testing.T){
 
 func Test_MemoryStore_Update_NonsequentialUpdate_failure(t *testing.T){
 	fms := newFooMemoryStore(nil, nil)
-	id, f, _ := fms.Create()
-	f.incrementVersion()
+	id1, f1, _ := fms.Create()
+	id2, f2, _ := fms.Create()
+	f2.incrementVersion()
+	expectedVersion := f1.getVersion()
 
-	err := fms.Update(id, f)
+	err := fms.UpdateMulti([]string{id1, id2}, []*foo{f1, f2})
 
-	assert.Equal(t, `nonsequential update for entity with id "`+id+`"`, err.Error(), `err should contain expected msg`)
+	assert.Equal(t, `nonsequential update for entity with id "`+id2+`"`, err.Error(), `err should contain expected msg`)
+	assert.Equal(t, expectedVersion, f1.getVersion(), `f1's version should be unchaged`)
 }
 
 func Test_MemoryStore_UpdateMulti_IdCountNotEqualToEntityCount_failure(t *testing.T){
