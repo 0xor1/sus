@@ -8,7 +8,7 @@
 		},
 		{
 			"ImportPath": "github.com/qedus/nds",
-			"Rev": "bc255d9b8553c8b9066edd8fbe1d8e09c176f2a7"
+			"Rev": "d2403ec8f0f07e332022f239f1289665b1c002b0"
 		},
 		{
 			"ImportPath": "github.com/stretchr/testify/assert",
