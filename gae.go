@@ -54,6 +54,7 @@ func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) Store {
 
 	rit := func(tran Transaction) error {
 		return nds.RunInTransaction(context.Background(), func(ctx context.Context)error{
+			//this mutex might be completely unnecessary, it might only matter that transactions have a context, not that they have a unique context
 			mtx.Lock()
 			defer func(){
 				tranCtx = nil
