@@ -1,6 +1,7 @@
 package sus
 
 import(
+	`sync`
 	`github.com/qedus/nds`
 	`golang.org/x/net/context`
 	`google.golang.org/appengine/datastore`
@@ -10,6 +11,7 @@ import(
 // github.com/qedus/nds is used for strongly consistent automatic caching.
 func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) Store {
 	var tranCtx context.Context
+	var mtx sync.Mutex
 
 	getKey := func(ctx context.Context, id string) *datastore.Key {
 		return datastore.NewKey(ctx, kind, id, 0, nil)
@@ -52,8 +54,12 @@ func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) Store {
 
 	rit := func(tran Transaction) error {
 		return nds.RunInTransaction(context.Background(), func(ctx context.Context)error{
+			mtx.Lock()
+			defer mtx.Unlock()
 			tranCtx = ctx
-			return tran()
+			err := tran()
+			tranCtx = nil
+			return err
 		}, &datastore.TransactionOptions{XG:true})
 	}
 

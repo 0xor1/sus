@@ -130,6 +130,7 @@ func NewFileStore(storeDir string, fileExt string, m Marshaler, un Unmarshaler, 
 		<pre class="file" id="file1" style="display: none">package sus
 
 import(
+        `sync`
         `github.com/qedus/nds`
         `golang.org/x/net/context`
         `google.golang.org/appengine/datastore`
@@ -139,6 +140,7 @@ import(
 // github.com/qedus/nds is used for strongly consistent automatic caching.
 func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) Store <span class="cov0" title="0">{
         var tranCtx context.Context
+        var mtx sync.Mutex
 
         getKey := func(ctx context.Context, id string) *datastore.Key </span><span class="cov0" title="0">{
                 return datastore.NewKey(ctx, kind, id, 0, nil)
@@ -181,8 +183,12 @@ func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) Store <span clas
 
         <span class="cov0" title="0">rit := func(tran Transaction) error </span><span class="cov0" title="0">{
                 return nds.RunInTransaction(context.Background(), func(ctx context.Context)error</span><span class="cov0" title="0">{
+                        mtx.Lock()
+                        defer mtx.Unlock()
                         tranCtx = ctx
-                        return tran()
+                        err := tran()
+                        tranCtx = nil
+                        return err
                 }</span>, &amp;datastore.TransactionOptions{XG:true})
         }
 
