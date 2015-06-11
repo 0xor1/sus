@@ -55,11 +55,12 @@ func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) Store {
 	rit := func(tran Transaction) error {
 		return nds.RunInTransaction(context.Background(), func(ctx context.Context)error{
 			mtx.Lock()
-			defer mtx.Unlock()
+			defer func(){
+				tranCtx = nil
+				mtx.Unlock()
+			}()
 			tranCtx = ctx
-			err := tran()
-			tranCtx = nil
-			return err
+			return tran()
 		}, &datastore.TransactionOptions{XG:true})
 	}
 

@@ -184,12 +184,13 @@ func NewGaeStore(kind string, idf IdFactory, vf VersionFactory) Store <span clas
         <span class="cov0" title="0">rit := func(tran Transaction) error </span><span class="cov0" title="0">{
                 return nds.RunInTransaction(context.Background(), func(ctx context.Context)error</span><span class="cov0" title="0">{
                         mtx.Lock()
-                        defer mtx.Unlock()
-                        tranCtx = ctx
-                        err := tran()
-                        tranCtx = nil
-                        return err
-                }</span>, &amp;datastore.TransactionOptions{XG:true})
+                        defer func()</span><span class="cov0" title="0">{
+                                tranCtx = nil
+                                mtx.Unlock()
+                        }</span>()
+                        <span class="cov0" title="0">tranCtx = ctx
+                        return tran()</span>
+                }, &amp;datastore.TransactionOptions{XG:true})
         }
 
         <span class="cov0" title="0">return NewStore(getMulti, putMulti, delMulti, idf, vf, isNonExtantError,rit)</span>
